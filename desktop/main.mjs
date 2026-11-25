@@ -11,6 +11,7 @@ import {createAppleMail} from './apple-mail.mjs';
 import {createMailRouting} from './mail-routing.mjs';
 import {createJobMail} from './job-mail.mjs';
 import {createDrive} from './drive.mjs';
+import {pickGoogleSetupFile} from './google-setup-file.mjs';
 import {createOmniRoute} from './omniroute.mjs';
 import {createSources} from './sources.mjs';
 import {readRegistrations} from './oauth-registrations.mjs';
@@ -118,7 +119,7 @@ async function start(){
   const appleMail=createAppleMail({prefs:config.prefs});
   mail=createMailRouting({cloudMail,appleMail});
   jobMail=createJobMail({mail,getJobs:()=>workspace.snapshot().jobs});
-  drive=createDrive({...config,openExternal,registrations});
+  drive=createDrive({...config,openExternal,registrations,pickRegistrationFile:()=>pickGoogleSetupFile(dialog,win)});
   const resume=createResume({dialog,window:()=>win});
   denyDevices(session.defaultSession);
   const methods={
@@ -139,6 +140,7 @@ async function start(){
   };
   for(const action of ['settings','configure','test','disconnect','search','subscriptionStatus','models','fallbackStatus','enableFallback','disableFallback','setFallbackModel'])methods['providers.'+action]=p=>providers[action](p);
   for(const action of ['list','add','setEnabled','remove'])methods['sources.'+action]=p=>sources[action](p);
+  methods['drive.importRegistration']=()=>drive.importRegistration();
   methods['mail.scan']=p=>jobMail.scan(p);
   for(const action of ['settings','connect','disconnect','cancel'])methods['drive.'+action]=p=>drive[action](p);
   for(const action of ['settings','connect','disconnect','appleAccounts'])methods['mail.'+action]=p=>mail[action](p);

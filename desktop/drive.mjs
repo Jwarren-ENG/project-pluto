@@ -6,6 +6,7 @@ const oauth = 'https://oauth2.googleapis.com'
 const files = 'https://www.googleapis.com/drive/v3/files'
 const uploads = 'https://www.googleapis.com/upload/drive/v3/files'
 const storageKey = 'drive.google.account'
+const registrationKey = 'drive.google.registration'
 const fields = 'id,name,mimeType,trashed,sha256Checksum,appProperties'
 const validId = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,256}$/.test(value)
 const hash = value => createHash('sha256').update(value).digest('hex')
@@ -82,14 +83,38 @@ function validatePdf({ pdf, filename, jobId }) {
   }
 }
 
-export function createDrive({ prefs, secrets, openExternal, registrations = {}, fetchImpl = globalThis.fetch }) {
+export function createDrive({ prefs, secrets, openExternal, pickRegistrationFile, registrations = {}, fetchImpl = globalThis.fetch }) {
   let publisher
   if (registrations?.gmail?.clientId) {
     try { publisher = registration(registrations.gmail) }
     catch { /* An invalid publisher registration leaves manual setup available. */ }
   }
   let active, cachedToken
-  const publicState = (email = '', busy = '') => ({ connected: Boolean(email), email, busy, registrationAvailable: Boolean(publisher) })
+  function publicState(email = '', busy = '', imported = false) {
+    return { connected: Boolean(email), email, busy, registrationAvailable: Boolean(publisher || imported),
+      ...(imported && !publisher ? { registrationSource: 'imported' } : {}) }
+  }
+  async function localRegistration() {
+    if (publisher) return null
+    try {
+      const raw = await secrets.get(registrationKey)
+      return raw ? registration(JSON.parse(raw)) : null
+    } catch { throw new Error('Could not read the Google setup. Unlock secure storage and try again.') }
+  }
+  function importRegistration() {
+    return run('importRegistration', 300_000, async signal => {
+      if (publisher || await read()) throw new Error('Google setup can only be imported on a disconnected copy without a publisher registration.')
+      const file = await pickRegistrationFile()
+      signal.throwIfAborted()
+      if (file === null) return null
+      const installed = file?.installed
+      if (!installed || file.web || file.type === 'service_account') throw new Error('Choose the JSON file for a Google Desktop app client.')
+      const client = registration({ clientId: installed.client_id, clientSecret: installed.client_secret })
+      try { await secrets.set(registrationKey, JSON.stringify(client)) }
+      catch { throw new Error('Could not save Google setup. Unlock secure storage and try again.') }
+      return publicState('', '', true)
+    })
+  }
   function run(kind, milliseconds, work) {
     if (active) throw new Error('A Google Drive action is in progress.')
     const controller = new AbortController()
@@ -134,7 +159,7 @@ export function createDrive({ prefs, secrets, openExternal, registrations = {}, 
   }
   async function settings() {
     const account = await read()
-    return publicState(account?.email, active?.kind)
+    return publicState(account?.email, active?.kind, Boolean(await localRegistration()))
   }
   async function token(client, params, signal) {
     const data = await request(oauth + '/token', formPost({ client_id: client.clientId,
@@ -152,7 +177,8 @@ export function createDrive({ prefs, secrets, openExternal, registrations = {}, 
   function connect(payload = {}) {
     return run('connect', 180_000, async signal => {
       if (await read()) throw new Error('Unlink the current Google Drive account before connecting another.')
-      const client = publisher || registration(payload)
+      const imported = await localRegistration()
+      const client = publisher || imported || registration(payload)
       const grant = await authorize(client.clientId, openExternal, signal)
       const access = await token(client, { grant_type: 'authorization_code', ...grant }, signal)
       if (typeof access.refresh !== 'string' || !access.refresh) throw new Error('Google did not grant offline Drive access. Review consent and try again.')
@@ -163,7 +189,7 @@ export function createDrive({ prefs, secrets, openExternal, registrations = {}, 
       if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+$/.test(email) || !validId(permissionId)) throw new Error('Google Drive could not confirm the connected account.')
       await save({ ...client, scope, email, permissionId, refreshToken: access.refresh })
       cachedToken = access
-      return publicState(email)
+      return publicState(email, '', Boolean(imported))
     })
   }
   async function cancel() {
@@ -186,7 +212,7 @@ export function createDrive({ prefs, secrets, openExternal, registrations = {}, 
       }
       await secrets.remove(storageKey)
       cachedToken = null
-      return publicState()
+      return publicState('', '', Boolean(await localRegistration()))
     })
   }
 
@@ -266,6 +292,6 @@ export function createDrive({ prefs, secrets, openExternal, registrations = {}, 
       return receipt(file, false)
     })
   }
-  return { settings, connect, cancel, disconnect, uploadResume,
+  return { settings, connect, importRegistration, cancel, disconnect, uploadResume,
     close() { active?.controller.abort(new Error('Pluto closed.')); cachedToken = null } }
 }

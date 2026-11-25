@@ -109,7 +109,7 @@ async function checkConnections(app, page) {
       },
     });
     ipcMain.removeHandler('pluto:action');
-    ipcMain.handle('pluto:action', (_, action, payload) => {
+    ipcMain.handle('pluto:action', async (_, action, payload) => {
       fixture.calls.push([action, payload.apiKey ? { ...payload, apiKey: '(entered)' } : payload]);
       if (action === 'app.openExternal') return;
       if (action === 'providers.settings' && fixture.aiUnavailable) throw new Error('Synthetic AI settings failure');
@@ -125,9 +125,24 @@ async function checkConnections(app, page) {
         return fixture.mail[payload.provider];
       }
       if (action === 'drive.settings') return fixture.drive;
-      if (action === 'drive.connect' || action === 'drive.disconnect') {
-        fixture.drive.connected = action === 'drive.connect';
-        fixture.drive.email = fixture.drive.connected ? 'sample@example.test' : '';
+      if (action === 'drive.cancel') {
+        if (fixture.driveGate?.action === 'drive.connect') fixture.driveGate.reply.reject(new Error('Google Drive sign-in canceled.'));
+        return fixture.drive;
+      }
+      if (['drive.importRegistration', 'drive.connect', 'drive.disconnect'].includes(action)) {
+        const gate = fixture.driveGate;
+        if (gate?.action === action) {
+          gate.started.resolve();
+          try { if (await gate.reply.promise === null) return null; }
+          finally { fixture.driveGate = null; }
+        }
+        if (action === 'drive.importRegistration') {
+          fixture.drive.registrationAvailable = true;
+          fixture.drive.registrationSource = 'imported';
+        } else {
+          fixture.drive.connected = action === 'drive.connect';
+          fixture.drive.email = fixture.drive.connected ? 'sample@example.test' : '';
+        }
         return fixture.drive;
       }
       const gateName = action === 'providers.models' ? 'nextModels' : action === 'providers.subscriptionStatus' ? 'nextStatus' : null;
@@ -271,23 +286,131 @@ async function checkConnections(app, page) {
     ['mail.connect', {provider:'gmail', appleAccountId:'sample-mailbox'}],
     ['mail.connect', {provider:'outlook'}],
   ]);
-  await page.getByRole('navigation').getByRole('button', {name:'Connections', exact:true}).click();
-  await button('Connect Google Drive').click();
-  const drive = page.getByRole('dialog', { name: 'Google Drive desktop client setup' });
-  await drive.getByLabel('Google desktop client ID').fill('smoke-test.apps.googleusercontent.com');
-  await drive.getByRole('button', { name: 'Continue with Google', exact: true }).click();
-  await drive.waitFor({ state: 'hidden' });
-  await button('Unlink Google Drive').waitFor();
-  await fixture.evaluate(f => { f.drive.registrationAvailable = true; });
-  await button('Unlink Google Drive').click();
-  await button('Connect Google Drive').click();
-  await button('Unlink Google Drive').waitFor();
-  assert.equal(await drive.count(), 0);
-  assert.deepEqual(await fixture.evaluate(f => f.calls.filter(([action]) => action === 'drive.connect')), [
-    ['drive.connect', { clientId: 'smoke-test.apps.googleusercontent.com', clientSecret: '' }],
-    ['drive.connect', {}],
-  ]);
+  await checkDriveConnection(page, fixture);
   await fixture.dispose();
+}
+
+async function checkDriveConnection(page, fixture) {
+  const navigate = name => page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
+  const drive = page.getByRole('region', { name: 'Google Drive', exact: true });
+  const button = name => drive.getByRole('button', { name, exact: true });
+  const picker = button('Import Google setup file');
+  const connect = button('Connect Google Drive');
+  const unlink = button('Unlink Google Drive');
+  const manual = drive.getByRole('dialog', { name: 'Google Drive desktop client setup' });
+  const calls = action => fixture.evaluate((f, action) => f.calls.filter(([name]) => name === action), action);
+  async function hold(action) {
+    await fixture.evaluate((f, action) => {
+      f.driveGate = { action, started: Promise.withResolvers(), reply: Promise.withResolvers() };
+    }, action);
+  }
+  const started = () => fixture.evaluate(f => f.driveGate.started.promise);
+  const cancelPicker = () => fixture.evaluate(f => f.driveGate.reply.resolve(null));
+  const reject = message => fixture.evaluate((f, message) => f.driveGate.reply.reject(new Error(message)), message);
+
+  await navigate('Connections');
+  await drive.getByRole('heading', { name: 'Google sign-in needs app setup' }).waitFor();
+  assert.equal(await connect.count(), 0);
+  assert.equal(await drive.locator('input').count(), 0);
+  assert.equal((await calls('drive.connect')).length, 0);
+  await hold('drive.importRegistration');
+  await picker.evaluate(el => { el.click(); el.click(); });
+  await started();
+  assert.ok(await picker.isDisabled());
+  assert.deepEqual(await calls('drive.importRegistration'), [['drive.importRegistration', {}]]);
+  await cancelPicker();
+  await drive.getByRole('status').filter({ hasText: 'file picker' }).waitFor({ state: 'hidden' });
+  assert.equal((await calls('drive.connect')).length, 0);
+
+  await hold('drive.importRegistration');
+  await picker.click();
+  await started();
+  await reject('Choose a Desktop app setup file.');
+  await drive.getByText('Choose a Desktop app setup file.', { exact: true }).waitFor();
+  assert.equal((await calls('drive.connect')).length, 0);
+
+  await drive.getByText('Setup for the app owner', { exact: true }).click();
+  await button('Advanced manual setup').click();
+  const clientId = 'smoke-test.apps.googleusercontent.com';
+  await manual.getByLabel('Google desktop client ID').fill(clientId);
+  await manual.getByRole('button', { name: 'Continue with Google' }).click();
+  await unlink.waitFor();
+  assert.deepEqual(await calls('drive.connect'), [['drive.connect', { clientId, clientSecret: '' }]]);
+  await unlink.click();
+
+  // Selecting a file after leaving Connections must not launch a browser sign-in.
+  await hold('drive.importRegistration');
+  await picker.click();
+  await started();
+  await navigate('Today');
+  await fixture.evaluate(f => f.driveGate.reply.resolve(true));
+  await navigate('Connections');
+  await connect.waitFor();
+  assert.equal((await calls('drive.connect')).length, 1);
+  assert.equal(await picker.count(), 0);
+
+  // A fresh self-hosted copy may already be busy when Connections opens.
+  await navigate('Today');
+  await fixture.evaluate(f => {
+    f.drive = { connected: false, email: '', busy: 'importRegistration', registrationAvailable: false };
+  });
+  await navigate('Connections');
+  await drive.getByText('A Google Drive action is in progress.').waitFor();
+  assert.ok(await picker.isDisabled());
+  await fixture.evaluate(f => { f.drive.busy = ''; });
+  await button('Refresh Drive status').click();
+  await hold('drive.connect');
+  await picker.click();
+  await started();
+  await drive.getByText('Finish Google Drive sign-in in your browser.').waitFor();
+  assert.equal(await drive.locator('input').count(), 0);
+  assert.equal(await drive.getByRole('dialog').count(), 0);
+  assert.ok(await connect.isDisabled());
+  await reject('Google rejected the desktop client credentials.');
+  await drive.getByRole('alert').filter({ hasText: 'Google rejected' }).waitFor();
+  assert.equal((await calls('drive.connect')).length, 2);
+  await hold('drive.importRegistration');
+  await picker.click();
+  await started();
+  await cancelPicker();
+  await drive.getByRole('status').filter({ hasText: 'file picker' }).waitFor({ state: 'hidden' });
+  assert.ok(await picker.isEnabled());
+  assert.equal((await calls('drive.connect')).length, 2);
+
+  // A replacement opens Google approval in the same flow and carries no file or credentials through the renderer.
+  await hold('drive.connect');
+  await picker.click();
+  await started();
+  await button('Cancel Drive sign-in').evaluate(el => { el.click(); el.click(); });
+  await page.getByText('Google Drive sign-in canceled.', { exact: true }).waitFor();
+  assert.equal(await drive.getByRole('alert').count(), 0);
+  assert.equal((await calls('drive.cancel')).length, 1);
+  await connect.click();
+  await drive.getByText('Connected as sample@example.test').waitFor();
+  assert.equal(await picker.count(), 0);
+  assert.deepEqual((await calls('drive.connect')).slice(1), Array(3).fill(['drive.connect', {}]));
+
+  // A built-in registration permits retry but cannot be replaced by the user.
+  await fixture.evaluate(f => { delete f.drive.registrationSource; });
+  await unlink.click();
+  await hold('drive.connect');
+  await connect.evaluate(el => { el.click(); el.click(); });
+  await started();
+  await reject('Google declined this request.');
+  await drive.getByRole('alert').filter({ hasText: 'Google declined' }).waitFor();
+  assert.equal((await calls('drive.connect')).length, 5);
+  assert.equal(await picker.count(), 0);
+  assert.equal(await manual.count(), 0);
+  await hold('drive.connect');
+  await connect.click();
+  await started();
+  await navigate('Today');
+  await navigate('Connections');
+  await connect.waitFor();
+  assert.equal((await calls('drive.cancel')).length, 2);
+  assert.equal(await drive.getByRole('alert').count(), 0);
+  await connect.click();
+  await drive.getByText('Connected as sample@example.test').waitFor();
 }
 
 async function checkModelPicker(page, fixture) {
@@ -433,7 +556,7 @@ try{
     await nav.getByRole('button',{name:title,exact:true}).click();
     await page.getByRole('heading',{name:title,exact:true,level:1}).waitFor();
     if(title==='Connections'){
-      for(const name of ['Connect Gmail','Connect Outlook','Connect Google Drive']){
+      for(const name of ['Connect Gmail','Connect Outlook',/^(Connect Google Drive|Import Google setup file)$/]){
         await page.getByRole('button',{name,exact:true}).waitFor();
       }
     }

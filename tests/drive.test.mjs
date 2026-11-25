@@ -211,3 +211,42 @@ test('unlink is local; explicit revoke failure keeps the grant available for ret
   assert.equal(f.grants.get('mail.gmail'), 'unrelated fixture')
   assert.equal(f.calls.filter(call => call.path === '/revoke').length, 2)
 })
+
+test('import remembers only the desktop registration and opens Google for a separate file grant', async () => {
+  const f = fixture()
+  const selected = { installed: { client_id: client.clientId, client_secret: client.clientSecret,
+    auth_uri: 'https://example.invalid/ignore', refresh_token: 'ignore-extra-fields' } }
+  const service = createDrive({ ...f.dependencies, pickRegistrationFile: () => selected })
+  const setup = await service.importRegistration()
+  assert.deepEqual(setup, { connected: false, email: '', busy: '', registrationAvailable: true, registrationSource: 'imported' })
+  assert.deepEqual(JSON.parse(f.grants.get('drive.google.registration')), client)
+  assert.equal(f.grants.has('drive.google.account'), false)
+  const restarted = createDrive(f.dependencies)
+  assert.deepEqual(await restarted.settings(), setup)
+  assert.equal((await restarted.connect()).connected, true)
+  assert.equal((await f.browser).origin, 'https://accounts.google.com')
+  assert.equal((await f.browser).searchParams.get('scope'), scope)
+  await assert.rejects(service.importRegistration(), /disconnected/)
+  assert.deepEqual(await restarted.disconnect(), setup)
+  assert.equal((await restarted.connect()).connected, true)
+})
+
+test('cancel, malformed files and a packaged registration never overwrite local credentials', async () => {
+  const f = fixture()
+  let selected = null
+  const drive = createDrive({ ...f.dependencies, pickRegistrationFile: () => selected })
+  assert.equal(await drive.importRegistration(), null)
+  for (selected of [{}, { web: { client_id: client.clientId } }, { type: 'service_account' }, { installed: { client_id: 'invalid' } }]) {
+    await assert.rejects(drive.importRegistration(), /Desktop app|client ID/)
+  }
+  assert.equal(f.grants.size, 0)
+  selected = { installed: { client_id: client.clientId } }
+  assert.equal((await drive.importRegistration()).registrationAvailable, true)
+  selected = { installed: { client_id: 'invalid' } }
+  await assert.rejects(drive.importRegistration(), /client ID/)
+  assert.equal(JSON.parse(f.grants.get('drive.google.registration')).clientId, client.clientId)
+  const packaged = createDrive({ ...f.dependencies, registrations: { gmail: client },
+    pickRegistrationFile: () => assert.fail('packaged builds already have setup') })
+  await assert.rejects(packaged.importRegistration(), /publisher/)
+  assert.equal((await packaged.settings()).registrationSource, undefined)
+})
