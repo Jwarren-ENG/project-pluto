@@ -1,0 +1,72 @@
+name: Desktop builds
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS Apple Silicon
+            runner: macos-15
+            arch: arm64
+            target: mac
+            platform: macOS
+            extension: dmg
+            executable: release/mac-arm64/PROJECT PLUTO.app/Contents/MacOS/PROJECT PLUTO
+          - label: macOS Intel
+            runner: macos-15-intel
+            arch: x64
+            target: mac
+            platform: macOS
+            extension: dmg
+            executable: release/mac/PROJECT PLUTO.app/Contents/MacOS/PROJECT PLUTO
+          - label: Windows x64
+            runner: windows-2025
+            arch: x64
+            target: win
+            platform: Windows
+            extension: exe
+            executable: release/win-unpacked/PROJECT PLUTO.exe
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          architecture: ${{ matrix.arch }}
+          cache: npm
+      - name: Verify native architecture
+        run: node -e "if(process.arch !== '${{ matrix.arch }}') process.exit(1)"
+      - run: npm ci --include=optional
+      - name: Install Electron binary
+        run: node node_modules/electron/install.js
+      - run: npm test
+      - run: npm run build
+      - name: Build installer
+        run: npm run package:native -- --${{ matrix.target }} --${{ matrix.arch }}
+      - name: Native smoke against packaged executable
+        env:
+          PLUTO_SMOKE_EXECUTABLE: ${{ github.workspace }}/${{ matrix.executable }}
+        run: npm run smoke
+      - name: Verify packaged app and PDF import
+        run: npm run verify:package
+      - uses: actions/upload-artifact@v7
+        with:
+          name: PROJECT-PLUTO-${{ matrix.platform }}-${{ matrix.arch }}
+          path: release/PROJECT-PLUTO-*-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.extension }}
+          if-no-files-found: error
+          compression-level: 0

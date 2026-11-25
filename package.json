@@ -1,0 +1,78 @@
+{
+  "name": "project-pluto-desktop",
+  "productName": "PROJECT PLUTO",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A desktop workspace for job applications and interview notes.",
+  "license": "MIT",
+  "author": "PROJECT PLUTO contributors",
+  "main": "desktop/main.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "npm run build && electron .",
+    "build": "vite build",
+    "test": "node --test tests/*.test.mjs",
+    "smoke": "node tests/smoke.mjs",
+    "dist": "npm run build && electron-builder --publish never",
+    "package:native": "electron-builder --publish never",
+    "verify:package": "node build/verify-package.mjs"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "lucide-react": "^1.80.0",
+    "pdfjs-dist": "^6.5.438",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "^45.5.0",
+    "electron-builder": "^26.18.0",
+    "playwright": "^1.65.1",
+    "vite": "^8.3.8"
+  },
+  "build": {
+    "appId": "app.projectpluto.desktop",
+    "productName": "PROJECT PLUTO",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "desktop/**/*.mjs",
+      "desktop/**/*.cjs",
+      "package.json",
+      "LICENSE"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/*.node",
+      "**/*.dll",
+      "**/*.dylib"
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.icns",
+      "identity": "-",
+      "artifactName": "PROJECT-PLUTO-${version}-macOS-${arch}.${ext}"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "PROJECT-PLUTO-${version}-Windows-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": null
+  }
+}
