@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
-import { budgetDefaults, estimateBudget, loadBudget, normalizeBudget } from '../ui/budget-estimate.mjs'
+import { budgetDefaults, connectedBudget, estimateBudget, loadBudget, normalizeBudget } from '../ui/budget-estimate.mjs'
 import { createWorkspace } from '../desktop/workspace.mjs'
 
 test('API range prices input and output separately and scales all usage over 30 days', () => {
@@ -16,7 +16,7 @@ test('API range prices input and output separately and scales all usage over 30 
 })
 
 test('Ollama has zero provider fees with or without estimated tool spending', () => {
-  const form = { ...budgetDefaults(), provider: 'ollama', toolCostPerRole: 0.10 }
+  const form = { ...budgetDefaults(), provider: 'ollama', electricityRate: 0, toolCostPerRole: 0.10 }
   assert.deepEqual(estimateBudget(form).day.modelFees, [0, 0])
   assert.deepEqual(estimateBudget(form).month.total, [30, 30])
   form.toolCostPerRole = 0
@@ -98,7 +98,7 @@ test('cumulative days share the daily and monthly endpoints and keep both ends o
 })
 
 test('selected-day estimates use local tool fees and preserve subscription fee and workload semantics', () => {
-  const form = { ...budgetDefaults(), provider: 'ollama', jobsPerDay: 3, toolCostPerRole: 0.25 }
+  const form = { ...budgetDefaults(), provider: 'ollama', watts: 0, jobsPerDay: 3, toolCostPerRole: 0.25 }
   assert.deepEqual(estimateBudget(form).days[4].total, [3, 3])
   form.provider = 'subscription'
   assert.equal(estimateBudget(form).days[4].total, null)
@@ -127,4 +127,65 @@ test('missing or legacy example rates do not produce a dollar forecast until con
   assert.deepEqual(estimateBudget(form).day.total,[0.5,0.5])
   assert.deepEqual(estimateBudget({...form,provider:'subscription'}).days[0].total,[0,0])
   assert.equal(loadBudget({version:1,rates:{custom:{input:2,output:7}}}).rates.custom.needsReview,undefined)
+})
+
+test('default and connected scenarios price the exact API model, independently of credits', () => {
+  const form = { ...budgetDefaults(), jobsPerDay: 100 }
+  assert.equal(form.provider, 'gpt-6.2-sol')
+  assert.deepEqual(estimateBudget(form).day.total, [0.70, 2])
+  const check = (provider, model) => connectedBudget({activeProvider: provider, providers: {[provider]: {model}}}).scenario
+  assert.equal(check('openai','gpt-6.2-astra'), 'gpt-6.2-astra')
+  assert.equal(check('anthropic','claude-sonnet-5-5'), 'claude-sonnet-5-5')
+  assert.equal(check('xai','grok-4.7-latest'), 'grok-4.7')
+  assert.equal(check('gemini','gemini-4-hydrogen'), 'gemini-4-hydrogen')
+  assert.equal(check('openai','gemini-4-hydrogen'), 'custom')
+  assert.equal(check('gemini','gemini-flash-latest'), 'custom')
+  assert.equal(check('openai','gpt-4.1-mini'),'openai')
+  assert.equal(check('codex','gpt-6.2-sol'), 'subscription')
+  const credits = estimateBudget({ ...form, provider: 'codex-sol-credits', toolCostPerRole: 0.01 })
+  assert.deepEqual(credits.day.credits, [17.5, 50])
+  assert.deepEqual(credits.month.credits, [525, 1500])
+  assert.equal(credits.day.tools, 1)
+  assert.equal(credits.day.total, null)
+  assert.deepEqual(estimateBudget({ ...form, provider: 'codex-astra-credits' }).day.credits, [70, 200])
+})
+
+test('old stock scenario migrates at the same target and custom prices keep their model', () => {
+  const saved = { version: 2, provider: 'openai', jobsPerDay: 100, rates: { openai: { input: 0.4, output: 1.6 } } }
+  assert.equal(loadBudget(saved).provider, 'gpt-6.2-sol')
+  assert.equal(loadBudget(saved).jobsPerDay, 100)
+  assert.equal(loadBudget({ ...saved, provider: 'anthropic' }).provider,'claude-sonnet-5-5')
+  const custom = loadBudget({ ...saved, rates: { openai: { input: 0, output: 1 } } })
+  assert.equal(custom.provider,'openai')
+  assert.deepEqual(custom.rates.openai,{input:0,output:1})
+  assert.equal(normalizeBudget(custom).version,3)
+})
+
+test('local energy uses watt-hours, elapsed inference time and a separate utility price', () => {
+  const local = { ...budgetDefaults(), provider:'ollama', jobsPerDay: 100, watts: 60, minutesLow: 2, minutesHigh: 6, electricityRate: 0.2 }
+  const result = estimateBudget(local)
+  assert.deepEqual(result.day.energyKwh,[0.2,0.6])
+  const near = (actual, expected) => assert.ok(Math.abs(actual-expected) < 1e-10)
+  near(result.day.total[0],0.04); near(result.day.total[1],0.12)
+  near(result.month.total[0],1.20); near(result.month.total[1],3.60)
+  near(estimateBudget({...local, toolCostPerRole:0.01}).day.total[1],1.12)
+  assert.deepEqual(estimateBudget({...local, jobsPerDay:0}).day.total,[0,0])
+  for (const invalid of [{watts:-1},{minutesLow:7},{electricityRate:''},{minutesHigh:Infinity}]) {
+    assert.throws(() => normalizeBudget({...local,...invalid}))
+  }
+})
+
+test('published Gemini change is charged on the correct day and saved overrides stay fixed', () => {
+  const start = '2026-11-25', december = '2026-12-01'
+  const form = { ...budgetDefaults(start), provider:'gemini-4-carbon', jobsPerDay:100 }
+  const forecast = estimateBudget(form,start)
+  assert.deepEqual(forecast.day.total, [0.7,2])
+  assert.deepEqual(forecast.days[6].total,[4.2,12])
+  assert.deepEqual(forecast.days[7].total,[5.6,16])
+  assert.deepEqual(forecast.month.total,[37.8,108])
+  assert.deepEqual(estimateBudget(form,december).day.total,[1.4,4])
+  assert.deepEqual(loadBudget(normalizeBudget(form,start),december).rates[form.provider],{input:4,output:20})
+  form.rates[form.provider] = {input:0,output:2}
+  assert.deepEqual(estimateBudget(form,start).month.total,[1.8,4.8])
+  assert.deepEqual(loadBudget(normalizeBudget(form,start),december).rates[form.provider],{input:0,output:2})
 })

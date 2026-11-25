@@ -1,7 +1,7 @@
 {
   "name": "project-pluto-desktop",
   "productName": "Project Pluto",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "description": "A desktop workspace for job applications and interview notes.",
   "license": "MIT",

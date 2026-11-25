@@ -3,16 +3,25 @@ import { Button } from './components/ui/button.jsx'
 import { Input } from './components/ui/input.jsx'
 import { Slider } from './components/ui/slider.jsx'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table.jsx'
-import { connectedBudget, estimateBudget, forecastDays, limits, loadBudget, normalizeBudget, rateCards } from './budget-estimate.mjs'
+import { calendarDay, connectedBudget, creditCards, estimateBudget, forecastDays, limits, loadBudget, normalizeBudget, publishedRates, rateCards } from './budget-estimate.mjs'
 
 import './budget.css'
 
 const count = new Intl.NumberFormat('en-US')
+const energy = new Intl.NumberFormat('en-US', { maximumSignificantDigits: 5 })
+const credits = new Intl.NumberFormat('en-US', { maximumSignificantDigits: 12 })
+const electricitySource = 'https://www.eia.gov/electricity/monthly/epm_table_grapher.php?t=epmt_5_6_a'
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 })
 const money = n => n > 0 && n < 0.0001 ? '< $0.0001' : usd.format(n)
 function range(values, format) {
   const low = format(values[0]), high = format(values[1])
   return low === high ? low : low + ' to ' + high
+}
+
+const metrics = {
+  total: { daily: 'Estimated daily cost', cumulative: 'Cumulative spend', format: values => values ? range(values, money) : 'Price needed' },
+  tokens: { daily: 'Estimated daily usage', cumulative: 'Cumulative token usage', format: values => range(values, count.format) + ' tokens' },
+  credits: { daily: 'Estimated daily credits', cumulative: 'Cumulative credit usage', format: values => range(values, credits.format) + ' credits' },
 }
 
 function sliderMax(jobs) {
@@ -27,13 +36,16 @@ function NumberField({ id, label, value, onChange, max, fractional = false, opti
   </label>
 }
 
-function MonthForecast({ month, selected, day, onDayChange, showTokens }) {
-  const [low, high] = showTokens ? month.tokens : month.total
-  const bounds = showTokens ? selected.tokens : selected.total
-  const value = showTokens ? range(bounds, n => count.format(n)) + ' tokens' : range(bounds, money)
-  const metric = showTokens ? 'Cumulative token usage' : 'Cumulative spend'
+function MonthForecast({ days, day, onDayChange, metric }) {
+  const high = days[forecastDays][metric][1]
+  const bounds = days[day][metric]
+  const value = metrics[metric].format(bounds)
+  const title = metrics[metric].cumulative
   // Percentage coordinates keep the plotted band and day cursor aligned as the pane resizes.
   const y = amount => high > 0 ? 95 - 90 * amount / high : 95
+  const points = bound => days.map((period, index) => `${100 * index / forecastDays} ${y(period[metric][bound])}`)
+  const lower = points(0)
+  const upper = points(1)
   const cursor = day / forecastDays * 100 + '%'
 
   function preview(event) {
@@ -43,22 +55,22 @@ function MonthForecast({ month, selected, day, onDayChange, showTokens }) {
   }
 
   return <figure className="budget-month">
-    <figcaption>{metric}<span>Day {day}</span></figcaption>
+    <figcaption>{title}<span>Day {day}</span></figcaption>
     <div className="budget-chart-value">{value}</div>
     <div className="budget-plot">
       <svg aria-hidden="true" focusable="false">
         <svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="none">
           <path className="budget-gridlines" d="M0 5H100 M0 50H100 M0 95H100" />
-          <path className="budget-band" d={`M0 95 L100 ${y(high)} L100 ${y(low)} Z`} />
-          <path className="budget-low" d={`M0 95 L100 ${y(low)}`} />
-          <path className="budget-high" d={`M0 95 L100 ${y(high)}`} />
+          <path className="budget-band" d={`M${upper.join(' L')} L${lower.toReversed().join(' L')} Z`} />
+          <path className="budget-low" d={`M${lower.join(' L')}`} />
+          <path className="budget-high" d={`M${upper.join(' L')}`} />
         </svg>
         <line className="budget-cursor" x1={cursor} x2={cursor} y1="5%" y2="95%" />
         {bounds[0] !== bounds[1] && <circle className="budget-dot low" cx={cursor} cy={y(bounds[0]) + '%'} r="3" />}
         <circle className="budget-dot" cx={cursor} cy={y(bounds[1]) + '%'} r="4" />
       </svg>
       <input type="range" aria-label="Forecast day" aria-describedby="budget-plot-help"
-        aria-valuetext={`Day ${day} of ${forecastDays}, ${metric.toLowerCase()}, ${value}`}
+        aria-valuetext={`Day ${day} of ${forecastDays}, ${title.toLowerCase()}, ${value}`}
         min="0" max={forecastDays} step="1" value={day} onPointerMove={preview}
         onChange={event => onDayChange(event.currentTarget.valueAsNumber)} />
     </div>
@@ -67,28 +79,34 @@ function MonthForecast({ month, selected, day, onDayChange, showTokens }) {
   </figure>
 }
 
-function Projection({ estimate, subscription }) {
+function Projection({ estimate, metric, local }) {
   const [day, setDay] = useState(forecastDays)
   if (!estimate) return null
   const selected = estimate.days[day]
   const rows = [
     ['Jobs', period => count.format(period.jobs)],
-    ['Estimated tokens', period => range(period.tokens, n => count.format(n))],
-    subscription ? ['Subscription allocation', period => period.subscription === null ? 'Fee unspecified' : money(period.subscription)] :
-      ['Model fees', period => period.modelFees ? range(period.modelFees, money) : 'Price needed'],
-    ['Tool charges', period => money(period.tools)],
-    ['Estimated total', period => period.total ? range(period.total, money) : subscription ? 'Fee unspecified' : 'Price needed'],
+    ['Estimated tokens', period => range(period.tokens, count.format)],
   ]
+  if (metric === 'credits') rows.push(['Purchased credits', period => metrics.credits.format(period.credits)])
+  else if (metric === 'tokens') rows.push(['Subscription allocation', period => period.subscription === null ? 'Fee unspecified' : money(period.subscription)])
+  else rows.push(['Model fees', period => period.modelFees ? range(period.modelFees, money) : 'Price needed'])
+  if (local) rows.push(
+    ['Energy use', period => range(period.energyKwh, energy.format) + ' kWh'],
+    ['Electricity', period => range(period.electricity, money)],
+  )
+  rows.push(['Tool charges', period => money(period.tools)])
+  if (metric !== 'credits') rows.push(['Estimated total', period => period.total ? range(period.total, money) : metric === 'tokens' ? 'Fee unspecified' : 'Price needed'])
   return <section className="budget-forecast" aria-labelledby="budget-forecast-title">
     <h2 id="budget-forecast-title">30-day forecast</h2>
     <div className="budget-forecast-grid">
       <Table aria-label="Daily and cumulative budget forecast">
         <TableHeader><TableRow><TableHead scope="col">Breakdown</TableHead><TableHead scope="col">Per day</TableHead><TableHead scope="col">Through day {day}</TableHead></TableRow></TableHeader>
-        <TableBody>{rows.map(([label, value]) => <TableRow key={label}>
+        <TableBody>{rows.map(([label, value]) => <TableRow key={label} className={label === 'Estimated total' ? 'budget-total' : undefined}>
           <TableHead scope="row">{label}</TableHead><TableCell>{value(estimate.day)}</TableCell><TableCell>{value(selected)}</TableCell>
         </TableRow>)}</TableBody>
       </Table>
-      <MonthForecast month={estimate.month} selected={selected} day={day} onDayChange={setDay} showTokens={subscription || !estimate.month.total} />
+      <MonthForecast days={estimate.days} day={day} onDayChange={setDay}
+        metric={metric === 'total' && !estimate.month.total ? 'tokens' : metric} />
     </div>
   </section>
 }
@@ -102,6 +120,23 @@ export default function Budget({ state, refresh, notify }) {
   const [saving, setSaving] = useState(false)
   const loaded = useRef(initial)
   const userTouchedBudget = useRef(false)
+
+  useEffect(() => {
+    // Refresh scheduled prices if the planner stays open overnight or the computer wakes.
+    const refreshRates = () => {
+      const today = calendarDay()
+      setForm(previous => previous.rateDate === today ? previous : loadBudget(previous, today))
+    }
+    const now = new Date()
+    const nextMidnight = new Date(now)
+    nextMidnight.setHours(24, 0, 0, 0)
+    const timer = window.setTimeout(refreshRates, nextMidnight - now)
+    window.addEventListener('focus', refreshRates)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('focus', refreshRates)
+    }
+  }, [form.rateDate])
 
   useEffect(() => {
     let current = true
@@ -136,15 +171,22 @@ export default function Budget({ state, refresh, notify }) {
     setForm(previous => ({ ...previous, rates: { ...previous.rates, [previous.provider]: { ...previous.rates[previous.provider], [key]: value } } }))
   }
   const card = Object.hasOwn(rateCards, form.provider) ? rateCards[form.provider] : null
+  const creditCard = Object.hasOwn(creditCards, form.provider) ? creditCards[form.provider] : null
+  const sourceCard = card || creditCard
   const prices = form.rates[form.provider]
   const isSubscription = form.provider === 'subscription'
-  const editedPreset = card?.source && (prices.input == null || prices.output == null ||
-    Number(prices.input) !== card.input || Number(prices.output) !== card.output)
+  const isLocal = form.provider === 'ollama'
+  const metric = creditCard ? 'credits' : isSubscription ? 'tokens' : 'total'
+  const todayRates = card?.input != null && card?.output != null ? publishedRates(card, calendarDay()) : null
+  const editedPreset = todayRates && (prices.input == null || prices.output == null ||
+    prices.input === '' || prices.output === '' ||
+    Number(prices.input) !== todayRates.input || Number(prices.output) !== todayRates.output)
   let estimate, error
   try { estimate = estimateBudget(form) } catch (problem) { error = problem.message }
-  async function openRateSource(event) {
+  async function openSource(event) {
+    if (event.type === 'auxclick' && event.button !== 1) return
     event.preventDefault()
-    try { await window.pluto.call('app.openExternal', { url: card.source }) }
+    try { await window.pluto.call('app.openExternal', { url: event.currentTarget.href }) }
     catch (problem) { notify(problem.message) }
   }
   async function save(event) {
@@ -186,34 +228,57 @@ export default function Budget({ state, refresh, notify }) {
           </div>
         </section>
         <output id="budget-daily-estimate" className="budget-readout" htmlFor="budget-jobs-slider budget-jobs-count" aria-live="polite" aria-atomic="true">
-          <span className="budget-readout-label">{isSubscription ? 'Estimated daily usage' : 'Estimated daily cost'}</span>
+          <span className="budget-readout-label">{metrics[metric].daily}</span>
           {error ? <span className="budget-error">{error}</span> : <>
-            <strong className="budget-amount">{isSubscription ? range(estimate.day.tokens, n => count.format(n)) :
-              estimate.day.total ? range(estimate.day.total, money) : 'Price needed'}</strong>
-            <span className="budget-readout-note">{isSubscription ? 'Estimated workload' : estimate.day.total ? 'USD' : 'Enter model prices below'} for {count.format(estimate.day.jobs)} {estimate.day.jobs === 1 ? 'job' : 'jobs'}.</span>
+            <strong className="budget-amount">{metrics[metric].format(estimate.day[metric])}</strong>
+            <span className="budget-readout-note">{count.format(estimate.day.jobs)} {estimate.day.jobs === 1 ? 'job' : 'jobs'} per day</span>
           </>}
         </output>
       </div>
       <div className="budget-toolbar">
         <label htmlFor="budget-provider">Pricing scenario</label>
         <select id="budget-provider" aria-describedby="budget-scenario-help" disabled={saving} value={form.provider} onChange={event => setField('provider', event.target.value)}>
-          <option value="openai">OpenAI · GPT-4.1 mini</option>
-          <option value="anthropic">Anthropic · Claude Sonnet 4.6</option>
-          <option value="openrouter">OpenRouter · manual rates</option>
-          <option value="custom">Other API model · manual rates</option>
+          <optgroup label="API models">
+            {Object.entries(rateCards).filter(([id, entry]) => !entry.legacy || id === form.provider)
+              .map(([id, entry]) => <option key={id} value={id}>{entry.label}</option>)}
+          </optgroup>
+          <optgroup label="Purchased Codex credits">
+            {Object.entries(creditCards).map(([id, entry]) => <option key={id} value={id}>{entry.label}</option>)}
+          </optgroup>
           <option value="ollama">Local inference · Ollama</option>
           <option value="subscription">Subscription plan</option>
         </select>
         <Button type="submit" disabled={Boolean(error) || saving}>{saving ? 'Saving…' : 'Save budget'}</Button>
       </div>
-      <p id="budget-scenario-help" className="muted">
-        {connection && <>Draft connection: {connection.label}. </>}
-        {isSubscription ? 'Tokens estimate drafting workload. Plan limits depend on the model and task.' :
-          form.provider === 'ollama' ? 'Local inference has no hosted model fee.' :
-          card?.source && !editedPreset ? 'Uses the published standard text rates for ' + card.label + '.' :
-          editedPreset ? 'Uses your edited prices for this scenario.' : 'Use the input and output prices for the model you plan to run.'}
-        {' '}Tools are budgeted at {money(Number(form.toolCostPerRole) || 0)} per job.
-      </p>
+      <div id="budget-scenario-help" className="budget-scenario-help">
+        {sourceCard?.source && <p>
+          {todayRates && <>Per million tokens, today’s published rates are {money(todayRates.input)} USD for input and {money(todayRates.output)} USD for output. </>}
+          {creditCard && <>Per million tokens, the rates are {credits.format(creditCard.input)} input credits and {credits.format(creditCard.output)} output credits. </>}
+          {sourceCard.note && !(editedPreset && sourceCard.schedule) && <>{sourceCard.note} </>}
+          {sourceCard.verified && <>Checked <time dateTime={sourceCard.verified}>{sourceCard.verified}</time>. </>}
+          <a href={sourceCard.source} onClick={openSource} onAuxClick={openSource}>{sourceCard.label} pricing</a>
+        </p>}
+        <p>
+          {connection && <>Draft connection: {connection.label}. </>}
+          {isSubscription ? 'Tokens estimate drafting workload. Plan limits depend on the model and task.' :
+            creditCard ? 'After your allowance is used, this estimates purchased credits for uncached tokens at Standard speed.' :
+            isLocal ? 'Ollama model fees are $0.' :
+            editedPreset ? 'This forecast uses your edited model prices for all 30 days.' :
+            !todayRates ? 'Enter your model’s input and output prices under Token and pricing assumptions.' : null}
+          {' '}Tools are budgeted at {money(Number(form.toolCostPerRole) || 0)} per job.
+        </p>
+      </div>
+      {isLocal && <fieldset className="budget-electricity" disabled={saving}>
+        <legend>Local electricity</legend>
+        <p>60 W and 2 to 6 minutes per job are examples. Enter the average power and run time you measure while drafting.</p>
+        <NumberField label="Average power (W)" value={form.watts} max={limits.watts} fractional onChange={v => setField('watts', v)} />
+        <NumberField label="Electricity rate (USD/kWh)" value={form.electricityRate} max={limits.electricityRate} fractional onChange={v => setField('electricityRate', v)} />
+        <NumberField label="Low minutes per job" value={form.minutesLow} max={limits.minutes} fractional onChange={v => setField('minutesLow', v)} />
+        <NumberField label="High minutes per job" value={form.minutesHigh} max={limits.minutes} fractional onChange={v => setField('minutesHigh', v)} />
+        <p>The starting rate is $0.1817/kWh, the U.S. residential average for September 2026. Use the rate on your electricity bill.{' '}
+          <a href={electricitySource} onClick={openSource} onAuxClick={openSource}>EIA electricity prices, Table 5.6.A</a>
+        </p>
+      </fieldset>}
       <details>
         <summary>Token and pricing assumptions</summary>
         <fieldset disabled={saving}>
@@ -226,12 +291,7 @@ export default function Budget({ state, refresh, notify }) {
         <fieldset disabled={saving}>
           <legend>Rates and tool charges</legend>
           {card && <>
-            {card.source ? <p>
-              {card.label} example, dated {card.verified}. Input was {money(card.input)} and output was {money(card.output)} per million tokens.{' '}
-              <a href={card.source} onClick={openRateSource} onAuxClick={event => { if (event.button === 1) openRateSource(event) }}>
-                View {card.label} pricing
-              </a>
-            </p> : <p>Enter your provider’s USD prices per million text tokens. Use 0 for a verified free rate.</p>}
+            {!todayRates && <p>Use 0 for a verified free rate.</p>}
             <NumberField optional label="Input USD per million tokens" value={form.rates[form.provider].input} max={limits.rate} fractional onChange={v => setRate('input', v)} />
             <NumberField optional label="Output USD per million tokens" value={form.rates[form.provider].output} max={limits.rate} fractional onChange={v => setRate('output', v)} />
             {prices.needsReview && <div><p>Your previous budget contains example rates. Verify the prices before using this forecast.</p>
@@ -239,7 +299,6 @@ export default function Budget({ state, refresh, notify }) {
                 onClick={() => setRate('needsReview', false)}>Use these prices</Button>
             </div>}
           </>}
-          {form.provider === 'ollama' && <p>Local model fees are $0. Hardware and electricity are excluded.</p>}
           {isSubscription && <>
             <p>Token totals measure workload. The monthly fee is spread across 30 days.</p>
             <NumberField label="Monthly subscription fee in USD (optional)" value={form.monthlySubscription} max={limits.subscription} fractional optional onChange={v => setField('monthlySubscription', v)} />
@@ -249,6 +308,6 @@ export default function Budget({ state, refresh, notify }) {
         </fieldset>
       </details>
     </form>
-    <Projection estimate={estimate} subscription={isSubscription} />
+    <Projection estimate={estimate} metric={metric} local={isLocal} />
   </div>
 }

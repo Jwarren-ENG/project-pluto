@@ -55,8 +55,8 @@ test('25 roles per day accumulate hosted fees, tools and tokens at the reference
   dollarRange(forecast.month.total, checkpoints[3].total)
 })
 
-test('local inference at 25 roles per day accumulates workload and only the per-role tool charge', () => {
-  const forecast = estimateBudget(scenario({ provider: 'ollama' }))
+test('local inference with an explicit zero electricity rate charges only the per-role tool fee', () => {
+  const forecast = estimateBudget(scenario({ provider: 'ollama', electricityRate: 0 }))
   for (const ref of checkpoints) {
     const period = forecast.days[ref.day]
     assert.deepEqual(period.tokens, ref.tokens)
