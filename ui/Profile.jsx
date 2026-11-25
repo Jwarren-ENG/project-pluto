@@ -200,7 +200,7 @@ function Wizard({ original, refresh, notify, close, editing }) {
           const file = await window.pluto.call('resume.pick', {})
           if (file) { setResume(file.text); setSource(file.name) }
         })}>Choose résumé file</Button>
-        <small>PDF, DOCX or TXT · up to 5 MiB</small>
+        <small className="block mt-2">PDF, DOCX or TXT · up to 5 MiB</small>
         {resume && <p>{source} · {resume.length.toLocaleString()} characters</p>}
         <details><summary>{resume ? 'View or edit résumé text' : 'Paste résumé text'}</summary>
         <label>Résumé text
@@ -292,13 +292,14 @@ export default function Profile({ state, refresh, notify }) {
     return <Wizard original={session || profile} editing={Boolean(session)} refresh={refresh} notify={notify}
       close={value => { if (value) setJustSaved(value); setSession(null) }}/>
   }
+  const facts = savedRows(saved).length
   return <section className="panel">
     <h2>Your profile</h2>
     {saved.name && <h3>{saved.name}</h3>}
     {saved.summary && <p>{saved.summary}</p>}
     {saved.targetRoles && <p><strong>Target roles</strong> · {saved.targetRoles}</p>}
     {saved.location && <p><strong>Preferred work locations</strong> · {saved.location}</p>}
-    <p>{savedRows(saved).length} confirmed facts</p>
+    <p>{facts} confirmed {facts === 1 ? 'fact' : 'facts'}</p>
     <Button type="button" onClick={() => setSession(saved)}>Edit profile</Button>
   </section>
 }

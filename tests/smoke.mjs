@@ -7,6 +7,63 @@ import path from 'node:path';
 const dir=await mkdtemp(path.join(os.tmpdir(),'pluto-desktop-test-'));
 const executablePath=process.env.PLUTO_EXECUTABLE || process.env.PLUTO_SMOKE_EXECUTABLE;
 const args=['--user-data-dir='+dir,...(executablePath?[]:['.'])];
+async function checkUnsavedEditors(page){
+  const nav=page.getByRole('navigation');
+  const button=name=>page.getByRole('button',{name,exact:true});
+  for(const item of [
+    {view:'Applications',kind:'application',open:'Open Product Analyst at Example Company',field:'Application draft',save:'Save application',other:'Notebook'},
+    {view:'Notebook',kind:'note',open:'Edit Interview notes',field:'Markdown',save:'Save note',other:'Today'},
+  ]){
+    const navigate=where=>nav.getByRole('button',{name:where,exact:true}).click();
+    const dialog=page.getByRole('alertdialog',{name:'Discard your '+item.kind+' edits?'});
+    const field=page.getByLabel(item.field,{exact:true});
+    await navigate(item.view);
+    await button(item.open).click();
+    const original=await field.inputValue();
+    const draft='Unsaved '+item.kind+' draft';
+    await field.fill(draft);
+    await navigate(item.other);
+    await dialog.waitFor();
+    const keep=dialog.getByRole('button',{name:'Keep editing'});
+    assert.ok(await keep.evaluate(el=>el===document.activeElement));
+    await keep.click();
+    assert.equal(await field.inputValue(),draft);
+    // Notebook stays on the same editor; Applications explicitly returns to its list.
+    await navigate(item.view);
+    if(item.view==='Applications'){
+      await dialog.waitFor();
+      await page.keyboard.press('Escape');
+    }
+    assert.equal(await field.inputValue(),draft);
+    await button('Close').click();
+    await dialog.waitFor();
+    await page.keyboard.press('Escape');
+    assert.equal(await field.inputValue(),draft);
+    await button('Close').click();
+    await dialog.getByRole('button',{name:'Discard changes'}).click();
+    await button(item.open).click();
+    assert.equal(await field.inputValue(),original);
+    await field.fill(draft);
+    await navigate(item.other);
+    await dialog.getByRole('button',{name:'Discard changes'}).click();
+    await page.getByRole('heading',{name:item.other,exact:true,level:1}).waitFor();
+    await navigate(item.view);
+    await button(item.open).click();
+    assert.equal(await field.inputValue(),original);
+    await field.fill(draft);
+    await field.fill(original);
+    await button('Close').click();
+    await button(item.open).click(); // Reverting the edit should leave cleanly.
+    await field.fill('Saved '+item.kind);
+    await button(item.save).click();
+    await button('Close').click();
+    await button(item.open).click(); // Successful saves should leave cleanly too.
+    assert.equal(await field.inputValue(),'Saved '+item.kind);
+    await navigate(item.other);
+    await page.getByRole('heading',{name:item.other,exact:true,level:1}).waitFor();
+  }
+}
+
 let app;
 try{
   app=await electron.launch({args, ...(executablePath?{executablePath}:{}),timeout:45000});
@@ -39,6 +96,8 @@ try{
     return {rejected,unknown,resume:sent.submittedSnapshot.resumeText,node:typeof require};
   });
   assert.deepEqual(proof,{rejected:true,unknown:true,resume:'Reviewed example résumé',node:'undefined'});
+  await page.reload();
+  await checkUnsavedEditors(page);
   assert.deepEqual(faults,[]);
   await app.close();app=null;
   app=await electron.launch({args,...(executablePath?{executablePath}:{}),timeout:45000});

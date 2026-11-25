@@ -4,6 +4,8 @@ A local desktop workspace for finding roles, preparing applications, keeping sub
 
 [Download the desktop app](https://github.com/Jwarren-ENG/project-pluto/releases/latest) · [Installation guide](docs/install.md) · [License](LICENSE)
 
+![The Today view with fictional application records and an upcoming interview](docs/preview.png)
+
 ## Start your search
 
 1. Open **Today** and choose **Start with your résumé**. Import a file or paste your experience. Review the extracted facts and confirm the details you want saved. You can add work examples, location preferences and a selected excerpt from a previous chat. [Profile guide](docs/profile.md)

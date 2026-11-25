@@ -75,12 +75,14 @@ function AIConnection({ settings, onSettings, notify }) {
           </label>}
           {custom && <p>Enter a key issued for this address. Pluto asks for a new key when the server address changes.</p>}
           {local && <p>Start Ollama and enter a model you have already installed.</p>}
-          <Button type="submit">{busy === 'save' ? 'Saving…' : active ? 'Save connection' : 'Use for drafts'}</Button>
-          {id === 'openrouter' && settings.openRouterSignIn && <Button variant="outline" type="button" disabled={!model.trim()} onClick={() => perform('oauth')}>Sign in with OpenRouter</Button>}
-          {saved.configured && <>
-            <Button variant="outline" type="button" disabled={changed} onClick={() => perform('test')}>{busy === 'test' ? 'Testing…' : 'Test model'}</Button>
-            <Button variant="outline" type="button" onClick={() => perform('disconnect')}>Disconnect {saved.label}</Button>
-          </>}
+          <div className="toolbar">
+            <Button type="submit">{busy === 'save' ? 'Saving…' : active ? 'Save connection' : 'Use for drafts'}</Button>
+            {id === 'openrouter' && settings.openRouterSignIn && <Button variant="outline" type="button" disabled={!model.trim()} onClick={() => perform('oauth')}>Sign in with OpenRouter</Button>}
+            {saved.configured && <>
+              <Button variant="outline" type="button" disabled={changed} onClick={() => perform('test')}>{busy === 'test' ? 'Testing…' : 'Test model'}</Button>
+              <Button variant="outline" type="button" onClick={() => perform('disconnect')}>Disconnect {saved.label}</Button>
+            </>}
+          </div>
         </fieldset>
         {busy === 'oauth' && <div>
           <p role="status">Finish sign-in in your browser. This request expires in three minutes.</p>
@@ -120,11 +122,13 @@ function FirecrawlConnection({ saved, onSettings, notify }) {
               placeholder={saved.configured ? 'Enter a replacement key' : 'Enter your Firecrawl key'}
               onChange={event => setKey(event.target.value)} />
           </label>
-          <Button type="submit">{busy === 'configure' ? 'Saving…' : saved.configured ? 'Replace key' : 'Connect Firecrawl'}</Button>
-          {saved.configured && <>
-            <Button variant="outline" type="button" disabled={Boolean(key)} onClick={() => perform('test')}>{busy === 'test' ? 'Testing…' : 'Test connection'}</Button>
-            <Button variant="outline" type="button" onClick={() => perform('disconnect')}>Disconnect Firecrawl</Button>
-          </>}
+          <div className="toolbar">
+            <Button type="submit">{busy === 'configure' ? 'Saving…' : saved.configured ? 'Replace key' : 'Connect Firecrawl'}</Button>
+            {saved.configured && <>
+              <Button variant="outline" type="button" disabled={Boolean(key)} onClick={() => perform('test')}>{busy === 'test' ? 'Testing…' : 'Test connection'}</Button>
+              <Button variant="outline" type="button" onClick={() => perform('disconnect')}>Disconnect Firecrawl</Button>
+            </>}
+          </div>
         </fieldset>
       </form>
     </section>

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from './components/ui/button'
 import { Input } from './components/ui/input'
 import { Textarea } from './components/ui/textarea'
@@ -45,7 +45,7 @@ function RecordHistory({ job }) {
   </>
 }
 
-function JobEditor({ initial, state, refresh, notify, close }) {
+function JobEditor({ initial, state, refresh, notify, close, reportEditor, requestLeave }) {
   const [base, setBase] = useState(initial)
   const [form, setForm] = useState(() => editable(initial))
   const [suggestion, setSuggestion] = useState(null)
@@ -55,6 +55,12 @@ function JobEditor({ initial, state, refresh, notify, close }) {
   const latest = state.jobs.find(j => j.id === base.id)
   const stale = latest && latest.updatedAt !== base.updatedAt
   const hasChanges = JSON.stringify(form) !== JSON.stringify(editable(base))
+  const dirty = hasChanges || suggestion !== null
+  useLayoutEffect(() => {
+    const working = busy === 'Saving' ? 'Saving your application…' : busy === 'Drafting' ? 'Finishing your draft…' : null
+    reportEditor({ kind: 'application', dirty, working })
+    return () => reportEditor(null)
+  }, [dirty, busy, reportEditor])
   const needsProof = employerStages.has(form.stage) && form.stage !== (base.stage ?? 'Saved')
   const profile = state.profile
   const canDraft = form.title.trim() && (profile?.confirmedFacts?.length || profile?.resumeText?.trim() || profile?.summary?.trim())
@@ -133,8 +139,8 @@ function JobEditor({ initial, state, refresh, notify, close }) {
     <form className="stack" onSubmit={save}>
       <header className="section-heading pb-4">
         <h2>{base.id ? base.title : 'New application'}</h2>
-        <Button type="button" variant="ghost" size="sm" disabled={!!busy} onClick={close}>
-          {hasChanges || suggestion ? 'Discard changes and close' : 'Close'}
+        <Button type="button" variant="ghost" size="sm" disabled={!!busy} onClick={() => requestLeave(close)}>
+          Close
         </Button>
       </header>
       <section className="space-y-3 border-t py-5" aria-labelledby="role-details-heading">
@@ -191,7 +197,7 @@ function JobEditor({ initial, state, refresh, notify, close }) {
         </label>
         {needsProof && form.stage === 'Applied' && <p className="muted">Saving Applied records this receipt and freezes the résumé and draft shown above.</p>}
         {stale && <div role="status"><p>A newer version of this application was saved. Your edits are still in the form.</p>
-          <Button variant="outline" size="sm" type="button" onClick={() => load(latest)}>Discard edits and load saved version</Button></div>}
+          <Button variant="outline" size="sm" type="button" onClick={() => requestLeave(() => load(latest))}>Discard edits and load saved version</Button></div>}
         {error && <p role="alert">{error}</p>}
         <div className="toolbar"><Button type="submit" size="sm" disabled={!!busy || !!stale}>{busy === 'Saving' ? 'Saving…' : 'Save application'}</Button></div>
       </section>
@@ -200,7 +206,7 @@ function JobEditor({ initial, state, refresh, notify, close }) {
   </div>
 }
 
-export default function Applications({ state, notify, refresh, seed, setSeed }) {
+export default function Applications({ state, notify, refresh, seed, setSeed, reportEditor, requestLeave }) {
   const [filter, setFilter] = useState('')
   const returnTo = useRef(null)
   useEffect(() => {
@@ -218,7 +224,7 @@ export default function Applications({ state, notify, refresh, seed, setSeed }) 
     const job = seed.id ? state.jobs.find(j => j.id === seed.id) : seed
     if (!job) return <section><p>This application is unavailable.</p><Button variant="outline" size="sm" onClick={() => setSeed(null)}>All applications</Button></section>
     return <JobEditor key={seed.id ?? JSON.stringify([seed.url, seed.title, seed.description])}
-      initial={job} state={state} refresh={refresh} notify={notify} close={() => setSeed(null)} />
+      initial={job} state={state} refresh={refresh} notify={notify} reportEditor={reportEditor} requestLeave={requestLeave} close={() => setSeed(null)} />
   }
   const query = filter.trim().toLowerCase()
   const visible = state.jobs.filter(j => (j.company + ' ' + j.title + ' ' + j.stage).toLowerCase().includes(query))
@@ -228,15 +234,17 @@ export default function Applications({ state, notify, refresh, seed, setSeed }) 
         value={filter} onChange={e => setFilter(e.target.value)} /> : <h2>Tracked roles</h2>}
       <Button id="add-role" type="button" size="sm" onClick={() => open({}, 'add-role')}>Add role</Button>
     </div>
-    <Table aria-label="Applications">
+    <Table aria-label="Applications" className="max-sm:table-fixed max-sm:[&_td]:px-1.5 max-sm:[&_th]:px-1.5">
       <TableHeader><TableRow>
-        <TableHead scope="col">Company</TableHead><TableHead scope="col">Role</TableHead><TableHead scope="col">Stage</TableHead>
+        <TableHead scope="col" className="max-sm:w-[29%]">Company</TableHead>
+        <TableHead scope="col">Role</TableHead>
+        <TableHead scope="col" className="max-sm:w-[25%]">Stage</TableHead>
       </TableRow></TableHeader>
       <TableBody>
         {visible.map(job => <TableRow key={job.id}>
-          <TableCell>{job.company}</TableCell>
+          <TableCell className="whitespace-normal [overflow-wrap:anywhere]">{job.company}</TableCell>
           <TableCell className="whitespace-normal">
-            <Button id={'open-role-' + job.id} type="button" variant="link" size="sm" className="h-auto whitespace-normal px-0 text-left"
+            <Button id={'open-role-' + job.id} type="button" variant="link" size="sm" className="block h-auto max-w-full whitespace-normal px-0 text-left [overflow-wrap:anywhere]"
               aria-label={`Open ${job.title} at ${job.company}`} onClick={() => open({ id: job.id }, 'open-role-' + job.id)}>
               {job.title}
             </Button>

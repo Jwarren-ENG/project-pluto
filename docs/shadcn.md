@@ -1,5 +1,7 @@
 # UI components and third party notices
 
+Taste Skill guides the visual design. Check changes with a long role title, a scheduled interview, a saved draft and a submission with a receipt. On Today, the next appointment gets the most space. In Daily budget, the job target and its cost sit together. Keep keyboard focus visible, respect reduced motion and check narrow windows with long text. [Taste Skill](https://github.com/Leonxlnx/taste-skill)
+
 PROJECT PLUTO includes these eight JavaScript components from the official shadcn/ui New York, Tailwind v4 Radix registry. Import the named exports from the corresponding file under `ui/components/ui`. The application renders the components locally. The shadcn CLI recognizes the project through `components.json`. [Registry and installation](https://ui.shadcn.com/docs/installation/vite) · [JavaScript configuration](https://ui.shadcn.com/docs/javascript)
 
 | Registry source | Exports |
