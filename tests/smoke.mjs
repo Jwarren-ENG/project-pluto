@@ -2,11 +2,72 @@
 import { _electron as electron } from 'playwright';
 import { strict as assert } from 'node:assert';
 import { mkdtemp, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 const dir=await mkdtemp(path.join(os.tmpdir(),'pluto-desktop-test-'));
 const executablePath=process.env.PLUTO_EXECUTABLE || process.env.PLUTO_SMOKE_EXECUTABLE;
 const args=['--user-data-dir='+dir,...(executablePath?[]:['.'])];
+
+// Exercise the shipped editor and capture exactly what reaches a local test model.
+// Leave the editor open during revocation to catch stale renderer permissions.
+async function checkDraftPrivacy(page) {
+  const received = [];
+  const server = createServer(async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.url === '/api/show') return res.end(JSON.stringify({ model_info: {} }));
+    if (req.url !== '/api/chat') { res.writeHead(404); return res.end(); }
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const { messages } = JSON.parse(Buffer.concat(chunks).toString());
+    received.push(JSON.parse(messages.find(message => message.role === 'user').content));
+    res.end(JSON.stringify({ message: { content: 'Example introduction ' + received.length } }));
+  });
+  try {
+    await new Promise((resolve, reject) => server.once('error', reject).listen(0, '127.0.0.1', resolve));
+    await page.evaluate(async port => {
+      const call = window.pluto.call;
+      await call('providers.configure', { provider: 'ollama', model: 'example', endpoint: 'http://127.0.0.1:' + port });
+      await call('workspace.saveProfile', {
+        confirmedFacts: ['Counted sample stock.'], resumeText: 'Unreviewed résumé line',
+        experienceStories: [
+          { id: 'shared', title: 'Count review', action: 'Reconciled a sample count.', useInDrafts: true },
+          { id: 'private', title: 'Private story', action: 'Private action', useInDrafts: false },
+        ],
+        applicationAnswers: { address: 'Private example address', salaryMin: 91000 },
+      });
+    }, server.address().port);
+    await page.reload();
+    await page.getByRole('navigation').getByRole('button', { name: 'Applications', exact: true }).click();
+    await page.getByRole('button', { name: 'Open Product Analyst at Example Company' }).click();
+    const draft = page.getByLabel('Application draft', { exact: true });
+    await draft.fill('');
+    const generate = page.getByRole('button', { name: 'Draft with AI' });
+    await generate.click();
+    await page.waitForFunction(() => document.querySelector('[aria-label="Application draft"]').value === 'Example introduction 1');
+    const expected = { name: 'Sample Candidate', confirmedFacts: ['Counted sample stock.'] };
+    assert.deepEqual(received[0].profile, { ...expected, experienceStories: [
+      { title: 'Count review', action: 'Reconciled a sample count.' },
+    ] });
+    await page.evaluate(async () => {
+      const { profile } = await window.pluto.call('workspace.snapshot');
+      const experienceStories = profile.experienceStories.map(story => ({ ...story, useInDrafts: false }));
+      await window.pluto.call('workspace.saveReviewedProfile', { changes: { experienceStories }, expected: { experienceStories: profile.experienceStories } });
+    });
+    await draft.fill('');
+    await generate.click();
+    await page.waitForFunction(() => document.querySelector('[aria-label="Application draft"]').value === 'Example introduction 2');
+    assert.deepEqual(received[1].profile, expected);
+    assert.equal(received.length, 2);
+    await page.reload();
+    await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Add role', exact: true }).waitFor();
+  } finally {
+    const closed = new Promise(resolve => server.close(resolve));
+    server.closeAllConnections();
+    await closed;
+  }
+}
 
 async function checkConnections(app, page) {
   // This is the final check in the disposable process. Exercise the shipped renderer,
@@ -406,6 +467,7 @@ try{
   assert.equal(saved.profile.budget.jobsPerDay,25);
   assert.equal(saved.notes.length,1);assert.equal(saved.jobs[0].submittedSnapshot.evidence,'Example portal receipt');
   page.on('pageerror',e=>faults.push(e.message));
+  await checkDraftPrivacy(page);
   await checkConnections(app,page);
   assert.deepEqual(faults,[]);
   console.log('Desktop verified: navigation, application target, receipt, private notes, restart persistence, AI accounts, model selection and connection setup.');

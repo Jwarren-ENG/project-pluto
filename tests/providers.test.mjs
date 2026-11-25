@@ -4,7 +4,14 @@ import { createHash } from 'node:crypto'
 import { createProviders } from '../desktop/providers.mjs'
 
 const sample = {
-  profile: { name: 'Riley Example', summary: 'Managed a fictional library project.', phone: 'private-phone', notes: 'private-note' },
+  profile: { name: 'Riley Example', summary: 'Managed a fictional library project.', phone: 'private-phone', notes: 'private-note',
+    applicationAnswers: { address: 'private-address', compensation: 'private-pay' },
+    experienceStories: [
+      { title: 'Book donation project', context: 'Volunteer shift', action: 'Sorted duplicate editions', result: 'Recovered a shelf of usable books', useInDrafts: true, source: 'private-source' },
+      { title: 'Local example only', action: 'private-work', useInDrafts: false },
+      { title: 'Legacy example', action: 'private-legacy' },
+      { action: 'private-invalid-consent', useInDrafts: 'yes' },
+    ] },
   job: { company: 'Example Library', title: 'Catalog Coordinator', description: 'Improve the catalog.', evidence: 'private-receipt' },
 }
 function fixture(handle = () => ({}), extras = {}) {
@@ -51,7 +58,10 @@ for (const [provider, endpoint, model] of [
     assert.equal(call.redirect, 'error')
     assert.equal(call.body.model, model)
     assert.ok(JSON.stringify(call.body).includes('Riley'))
-    assert.doesNotMatch(JSON.stringify(call.body), /private-phone|private-receipt|private-note/)
+    assert.doesNotMatch(JSON.stringify(call.body), /private-(?:phone|receipt|note|address|pay|source|work|legacy|invalid)/)
+    assert.deepEqual(JSON.parse(call.body.messages.at(-1).content).profile.experienceStories, [{
+      title:'Book donation project', context:'Volunteer shift', action:'Sorted duplicate editions', result:'Recovered a shelf of usable books',
+    }])
     if (provider === 'anthropic') {
       assert.ok(call.body.system)
       assert.equal(call.headers['x-api-key'], apiKey)
@@ -243,7 +253,8 @@ test('subscription drafts use the signed-in CLI, expose only selected fields, an
   const profile = { ...sample.profile, resumeText: 'deselected', confirmedFacts: [{ text: 'Approved example fact' }] }
   assert.equal(await restored.draft({ ...sample, profile }), 'Draft via Codex.')
   assert.ok(prompts[0][1].profile.confirmedFacts.includes('Approved example fact'))
-  assert.doesNotMatch(JSON.stringify(prompts), /private-phone|private-receipt|deselected/)
+  assert.doesNotMatch(JSON.stringify(prompts), /private-|deselected/)
+  assert.equal(prompts[0][1].profile.experienceStories.length, 1)
   state = 'other'
   await assert.rejects(restored.draft(sample), /another login method/)
   assert.equal(prompts.length, 1)

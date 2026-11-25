@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Button } from './components/ui/button.jsx'
 import { Input } from './components/ui/input.jsx'
 import { Textarea } from './components/ui/textarea.jsx'
+import ProfileDetails, { detailChanges } from './ProfileDetails.jsx'
 
 const TEXT_LIMIT = 80_000
 const EXCERPT_LIMIT = 8000
@@ -91,7 +92,25 @@ function SourceDetails({ source, quote, section }) {
   </details>
 }
 
-function Wizard({ original, refresh, notify, close, editing }) {
+async function saveReviewed(original, reviewed) {
+  const { profile } = await window.pluto.call('workspace.snapshot', {})
+  const latest = profile || {}
+  const standard = { ...reviewed }
+  delete standard.experienceStories
+  delete standard.applicationAnswers
+  const changes = { ...reviewedChanges(original, latest, standard), ...detailChanges(original, latest, reviewed) }
+  if (Object.keys(changes).length) {
+    const expected = Object.fromEntries(Object.keys(changes).map(key => [key, latest[key] ?? null]))
+    await window.pluto.call('workspace.saveReviewedProfile', { changes, expected })
+  }
+  return { ...latest, ...changes }
+}
+
+function Wizard({ original: initial, refresh, notify, close, reload, editing }) {
+  const [original] = useState(initial)
+  const [details, setDetails] = useState(() => ({
+    experienceStories: original.experienceStories || [], applicationAnswers: original.applicationAnswers || {},
+  }))
   const [step, setStep] = useState(0)
   const [resume, setResume] = useState(valueOf(original.resumeText))
   const [source, setSource] = useState(valueOf(original.resumeSource) || 'Résumé')
@@ -178,12 +197,9 @@ function Wizard({ original, refresh, notify, close, editing }) {
 
   async function save() {
     if (!confirmed) return
-    const reviewed = { ...fields, profileConfirmed: true, resumeText: resume, resumeSource: source,
+    const reviewed = { ...fields, ...details, profileConfirmed: true, resumeText: resume, resumeSource: source,
       confirmedFacts: included.map(({ included, origin, ...fact }) => ({ ...fact, text: fact.text.trim() })) }
-    const latest = await window.pluto.call('workspace.snapshot', {})
-    const changes = reviewedChanges(original, latest.profile || {}, reviewed)
-    await window.pluto.call('workspace.saveProfile', changes)
-    close({ ...latest.profile, ...changes })
+    close(await saveReviewed(original, reviewed))
     try { await refresh(); notify('Profile saved.') }
     catch { notify('Profile saved. Reopen the workspace to refresh its contents.') }
   }
@@ -195,7 +211,7 @@ function Wizard({ original, refresh, notify, close, editing }) {
     <fieldset disabled={busy}>
       <legend>{['Résumé source', 'Profile details', 'Search preferences', 'Profile to save'][step]}</legend>
       {step === 0 && <>
-        <p>Choose a résumé or paste its text. You can edit what PLUTO finds before saving it locally.</p>
+        <p>Choose a résumé or paste its text. You can edit what Project Pluto finds before saving it locally.</p>
         <Button type="button" onClick={() => run(async () => {
           const file = await window.pluto.call('resume.pick', {})
           if (file) { setResume(file.text); setSource(file.name) }
@@ -252,7 +268,7 @@ function Wizard({ original, refresh, notify, close, editing }) {
         }}>Add a fact</Button>
       </>}
       {step === 2 && <>
-        <p>Tell PLUTO which opportunities you want to see. You can leave either preference open.</p>
+        <p>Tell Project Pluto which opportunities you want to see. You can leave either preference open.</p>
         {Object.entries(preferences).map(([key, label]) =>
           (!original[key] && !evidence[key]) || editPreferences ? fieldInput(key, label) : <div key={key}>
             <p><strong>{label}</strong> · {fields[key]}</p>
@@ -260,6 +276,11 @@ function Wizard({ original, refresh, notify, close, editing }) {
           </div>)}
         {!editPreferences && Object.keys(preferences).some(key => original[key] || evidence[key]) &&
           <Button type="button" variant="outline" onClick={() => setEditPreferences(true)}>Edit preferences</Button>}
+        <ProfileDetails profile={details} staged onCommit={(base, next) => {
+          const updates = detailChanges(base, details, next)
+          setDetails({ ...details, ...updates })
+          setConfirmed(false)
+        }}/>
       </>}
       {step === 3 && <>
         <dl>{Object.entries({ ...profileFields, ...preferences }).map(([key, label]) =>
@@ -267,10 +288,14 @@ function Wizard({ original, refresh, notify, close, editing }) {
         <h3>{included.length} {included.length === 1 ? 'selected fact' : 'selected facts'}</h3>
         <ul>{included.map((row, i) => <li key={i}>{row.text}<SourceDetails source={row.source} quote={row.quote} section={row.section}/></li>)}</ul>
         {resume && <details><summary>Résumé text to save · {source}</summary><p style={{whiteSpace: 'pre-wrap'}}>{resume}</p></details>}
+        {(details.experienceStories.length > 0 || Object.keys(details.applicationAnswers).length > 0) &&
+          <ProfileDetails profile={details} review/>}
         <label><Input type="checkbox" className="size-4 shrink-0 p-0 shadow-none" checked={confirmed} onChange={e => setConfirmed(e.target.checked)}/>I confirm these details and selected sources for my profile.</label>
       </>}
     </fieldset>
     {error && <p role="alert">{error}</p>}
+    {error.includes('changed while you were editing') && <Button type="button" variant="outline" disabled={busy}
+      onClick={() => run(reload)}>Discard edits and reload profile</Button>}
     {busy && <p role="status">{step === 3 ? 'Saving profile…' : 'Reading file…'}</p>}
     <div className="actions">
       {step !== 0 && <Button type="button" variant="outline" disabled={busy} onClick={() => changeStep(step - 1)}>Back</Button>}
@@ -285,11 +310,18 @@ function Wizard({ original, refresh, notify, close, editing }) {
 export default function Profile({ state, refresh, notify }) {
   const profile = state?.profile || {}
   const [session, setSession] = useState(null)
+  const [revision, setRevision] = useState(0)
   const [justSaved, setJustSaved] = useState(null)
   const saved = justSaved || profile
   useEffect(() => { setJustSaved(null) }, [state?.profile])
   if (session || !hasProfile(saved)) {
-    return <Wizard original={session || profile} editing={Boolean(session)} refresh={refresh} notify={notify}
+    return <Wizard key={revision} original={session || saved} editing={Boolean(session)} refresh={refresh} notify={notify}
+      reload={async () => {
+        const current = await window.pluto.call('workspace.snapshot', {})
+        setJustSaved(current.profile || {})
+        setSession(null)
+        setRevision(value => value + 1)
+      }}
       close={value => { if (value) setJustSaved(value); setSession(null) }}/>
   }
   const facts = savedRows(saved).length
@@ -301,5 +333,14 @@ export default function Profile({ state, refresh, notify }) {
     {saved.location && <p><strong>Preferred work locations</strong> · {saved.location}</p>}
     <p>{facts} confirmed {facts === 1 ? 'fact' : 'facts'}</p>
     <Button type="button" onClick={() => setSession(saved)}>Edit profile</Button>
+    <ProfileDetails profile={saved} onCommit={async (base, next) => {
+      try { setJustSaved(await saveReviewed(base, next)) }
+      catch (failure) {
+        if (failure.message?.includes('changed while you were editing')) await refresh()
+        throw failure
+      }
+      try { await refresh(); notify('Profile details saved.') }
+      catch { notify('Profile details saved. Reopen the workspace to refresh its contents.') }
+    }}/>
   </section>
 }

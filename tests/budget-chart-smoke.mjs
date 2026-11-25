@@ -24,6 +24,7 @@ try {
   await page.exposeFunction('chartFixture', action => {
     calls.push(action)
     if (action === 'workspace.snapshot') return { profile: { budget }, jobs: [], notes: [], schedule: {} }
+    if (action === 'providers.settings') return { activeProvider: null }
     throw new Error('Unexpected chart action ' + action)
   })
   await page.addInitScript(() => { window.pluto = { call: window.chartFixture } })
@@ -102,7 +103,7 @@ try {
   assert.equal(await plot.count(), 0)
   await page.getByLabel('Jobs per day', { exact: true }).fill('0')
   await check(21, 0, '0 tokens', true)
-  assert.deepEqual(calls, ['workspace.snapshot'])
+  assert.deepEqual(calls, ['workspace.snapshot', 'providers.settings'])
   console.log('Passed forecast hover, click, drag, keyboard, touch, cumulative totals and scenario changes.')
 } finally {
   await app?.close()

@@ -72,6 +72,7 @@ jobs:
           PLUTO_SMOKE_EXECUTABLE: ${{ github.workspace }}/${{ matrix.executable }}
         run: |
           npm run smoke
+          npm run smoke:profile
           npm run smoke:sources
           npm run smoke:interactions
       - name: Verify packaged app and PDF import

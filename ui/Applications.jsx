@@ -63,7 +63,7 @@ function JobEditor({ initial, state, refresh, notify, close, reportEditor, reque
   }, [dirty, busy, reportEditor])
   const needsProof = employerStages.has(form.stage) && form.stage !== (base.stage ?? 'Saved')
   const profile = state.profile
-  const canDraft = form.title.trim() && (profile?.confirmedFacts?.length || profile?.resumeText?.trim() || profile?.summary?.trim())
+  const canDraft = form.title.trim() && (profile?.confirmedFacts?.length || profile?.resumeText?.trim() || profile?.summary?.trim() || profile?.experienceStories?.some(s => s?.useInDrafts === true && s.action?.trim()))
   const change = (field, value) => setForm(prev => ({ ...prev, [field]: value }))
 
   function load(saved) {
@@ -111,10 +111,7 @@ function JobEditor({ initial, state, refresh, notify, close, reportEditor, reque
   function generate() {
     run('Drafting', async () => {
       const job = Object.fromEntries(['company', 'title', 'description', 'location', 'salary'].map(k => [k, form[k]]))
-      const applicant = Object.fromEntries(['name', 'summary', 'targetRoles', 'location'].map(k => [k, profile[k] ?? '']))
-      if (Array.isArray(profile.confirmedFacts)) applicant.confirmedFacts = profile.confirmedFacts.map(f => typeof f === 'string' ? f : f.text)
-      else applicant.resumeText = profile.resumeText
-      const draft = await window.pluto.call('providers.draft', { profile: applicant, job })
+      const draft = await window.pluto.call('providers.draft', { job })
       if (!draft || typeof draft !== 'string') throw new Error('The provider returned an empty draft.')
       if (form.draft.trim()) setSuggestion(draft)
       else change('draft', draft)
@@ -182,7 +179,7 @@ function JobEditor({ initial, state, refresh, notify, close, reportEditor, reque
           <Button type="button" variant="outline" size="sm" onClick={generate} disabled={!!busy || !canDraft || suggestion !== null}>
             {busy === 'Drafting' ? 'Drafting…' : 'Draft with AI'}
           </Button>
-          <small className="muted">{canDraft ? 'Uses the reviewed profile and this role with your connected provider.' : 'Add a reviewed profile and job title to draft with AI.'}</small>
+          <small className="muted">{canDraft ? 'Uses your confirmed facts, examples you approved for drafts, and this role.' : 'Add a reviewed profile and job title to draft with AI.'}</small>
         </div>
         {suggestion !== null && <section aria-label="Suggested replacement" className="space-y-2 py-3">
           <h4>Suggested replacement</h4><pre>{suggestion}</pre>

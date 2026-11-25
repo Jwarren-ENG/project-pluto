@@ -3,7 +3,7 @@ import { Button } from './components/ui/button.jsx'
 import { Input } from './components/ui/input.jsx'
 import { Slider } from './components/ui/slider.jsx'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table.jsx'
-import { estimateBudget, forecastDays, limits, loadBudget, normalizeBudget, rateCards } from './budget-estimate.mjs'
+import { connectedBudget, estimateBudget, forecastDays, limits, loadBudget, normalizeBudget, rateCards } from './budget-estimate.mjs'
 
 import './budget.css'
 
@@ -27,11 +27,11 @@ function NumberField({ id, label, value, onChange, max, fractional = false, opti
   </label>
 }
 
-function MonthForecast({ month, selected, day, onDayChange, subscription }) {
-  const [low, high] = subscription ? month.tokens : month.total
-  const bounds = subscription ? selected.tokens : selected.total
-  const value = subscription ? range(bounds, n => count.format(n)) + ' tokens' : range(bounds, money)
-  const metric = subscription ? 'Cumulative token usage' : 'Cumulative spend'
+function MonthForecast({ month, selected, day, onDayChange, showTokens }) {
+  const [low, high] = showTokens ? month.tokens : month.total
+  const bounds = showTokens ? selected.tokens : selected.total
+  const value = showTokens ? range(bounds, n => count.format(n)) + ' tokens' : range(bounds, money)
+  const metric = showTokens ? 'Cumulative token usage' : 'Cumulative spend'
   // Percentage coordinates keep the plotted band and day cursor aligned as the pane resizes.
   const y = amount => high > 0 ? 95 - 90 * amount / high : 95
   const cursor = day / forecastDays * 100 + '%'
@@ -75,9 +75,9 @@ function Projection({ estimate, subscription }) {
     ['Jobs', period => count.format(period.jobs)],
     ['Estimated tokens', period => range(period.tokens, n => count.format(n))],
     subscription ? ['Subscription allocation', period => period.subscription === null ? 'Fee unspecified' : money(period.subscription)] :
-      ['Model fees', period => range(period.modelFees, money)],
+      ['Model fees', period => period.modelFees ? range(period.modelFees, money) : 'Price needed'],
     ['Tool charges', period => money(period.tools)],
-    ['Estimated total', period => period.total ? range(period.total, money) : 'Fee unspecified'],
+    ['Estimated total', period => period.total ? range(period.total, money) : subscription ? 'Fee unspecified' : 'Price needed'],
   ]
   return <section className="budget-forecast" aria-labelledby="budget-forecast-title">
     <h2 id="budget-forecast-title">30-day forecast</h2>
@@ -88,7 +88,7 @@ function Projection({ estimate, subscription }) {
           <TableHead scope="row">{label}</TableHead><TableCell>{value(estimate.day)}</TableCell><TableCell>{value(selected)}</TableCell>
         </TableRow>)}</TableBody>
       </Table>
-      <MonthForecast month={estimate.month} selected={selected} day={day} onDayChange={setDay} subscription={subscription} />
+      <MonthForecast month={estimate.month} selected={selected} day={day} onDayChange={setDay} showTokens={subscription || !estimate.month.total} />
     </div>
   </section>
 }
@@ -98,19 +98,22 @@ export default function Budget({ state, refresh, notify }) {
   const [form, setForm] = useState(() => loadBudget(initial))
   const [sliderLimit, setSliderLimit] = useState(() => sliderMax(initial?.jobsPerDay))
   const [dirty, setDirty] = useState(false)
+  const [connection, setConnection] = useState(null)
   const [saving, setSaving] = useState(false)
   const loaded = useRef(initial)
   const userTouchedBudget = useRef(false)
 
   useEffect(() => {
-    if (initial != null || userTouchedBudget.current) return
     let current = true
     window.pluto.call('providers.settings', {}).then(settings => {
-      if (current && !userTouchedBudget.current && settings?.activeProvider === 'codex') {
-        setForm(previous => ({ ...previous, provider: 'subscription' }))
+      if (!current) return
+      const connected = connectedBudget(settings)
+      setConnection(connected)
+      if (initial == null && !userTouchedBudget.current && connected) {
+        setForm(previous => ({ ...previous, provider: connected.scenario }))
       }
     }).catch(() => {
-      // The planner still works with its standard assumptions when settings are unavailable.
+      // Offline, the scenario label still identifies the rates being estimated.
     })
     return () => { current = false }
   }, [initial])
@@ -133,7 +136,10 @@ export default function Budget({ state, refresh, notify }) {
     setForm(previous => ({ ...previous, rates: { ...previous.rates, [previous.provider]: { ...previous.rates[previous.provider], [key]: value } } }))
   }
   const card = Object.hasOwn(rateCards, form.provider) ? rateCards[form.provider] : null
+  const prices = form.rates[form.provider]
   const isSubscription = form.provider === 'subscription'
+  const editedPreset = card?.source && (prices.input == null || prices.output == null ||
+    Number(prices.input) !== card.input || Number(prices.output) !== card.output)
   let estimate, error
   try { estimate = estimateBudget(form) } catch (problem) { error = problem.message }
   async function openRateSource(event) {
@@ -182,29 +188,37 @@ export default function Budget({ state, refresh, notify }) {
         <output id="budget-daily-estimate" className="budget-readout" htmlFor="budget-jobs-slider budget-jobs-count" aria-live="polite" aria-atomic="true">
           <span className="budget-readout-label">{isSubscription ? 'Estimated daily usage' : 'Estimated daily cost'}</span>
           {error ? <span className="budget-error">{error}</span> : <>
-            <strong className="budget-amount">{range(isSubscription ? estimate.day.tokens : estimate.day.total, isSubscription ? n => count.format(n) : money)}</strong>
-            <span className="budget-readout-note">{isSubscription ? 'Tokens' : 'USD including model and tool charges'} for {count.format(estimate.day.jobs)} {estimate.day.jobs === 1 ? 'job' : 'jobs'}.</span>
+            <strong className="budget-amount">{isSubscription ? range(estimate.day.tokens, n => count.format(n)) :
+              estimate.day.total ? range(estimate.day.total, money) : 'Price needed'}</strong>
+            <span className="budget-readout-note">{isSubscription ? 'Estimated workload' : estimate.day.total ? 'USD' : 'Enter model prices below'} for {count.format(estimate.day.jobs)} {estimate.day.jobs === 1 ? 'job' : 'jobs'}.</span>
           </>}
         </output>
       </div>
       <div className="budget-toolbar">
         <label htmlFor="budget-provider">Pricing scenario</label>
         <select id="budget-provider" aria-describedby="budget-scenario-help" disabled={saving} value={form.provider} onChange={event => setField('provider', event.target.value)}>
-          <option value="openai">OpenAI API · example rates</option>
-          <option value="anthropic">Anthropic API · example rates</option>
-          <option value="openrouter">OpenRouter · editable estimate</option>
-          <option value="custom">Custom API · editable estimate</option>
+          <option value="openai">OpenAI · GPT-4.1 mini</option>
+          <option value="anthropic">Anthropic · Claude Sonnet 4.6</option>
+          <option value="openrouter">OpenRouter · manual rates</option>
+          <option value="custom">Other API model · manual rates</option>
           <option value="ollama">Local inference · Ollama</option>
           <option value="subscription">Subscription plan</option>
         </select>
         <Button type="submit" disabled={Boolean(error) || saving}>{saving ? 'Saving…' : 'Save budget'}</Button>
       </div>
-      <p id="budget-scenario-help" className="muted">Choose your drafting model in <strong>Connections → AI for drafts</strong>. For an API estimate, enter that model’s published rates below.</p>
+      <p id="budget-scenario-help" className="muted">
+        {connection && <>Draft connection: {connection.label}. </>}
+        {isSubscription ? 'Tokens estimate drafting workload. Plan limits depend on the model and task.' :
+          form.provider === 'ollama' ? 'Local inference has no hosted model fee.' :
+          card?.source && !editedPreset ? 'Uses the published standard text rates for ' + card.label + '.' :
+          editedPreset ? 'Uses your edited prices for this scenario.' : 'Use the input and output prices for the model you plan to run.'}
+        {' '}Tools are budgeted at {money(Number(form.toolCostPerRole) || 0)} per job.
+      </p>
       <details>
         <summary>Token and pricing assumptions</summary>
         <fieldset disabled={saving}>
           <legend>Tokens per role</legend>
-          <p>Include every model call and retry for one role.</p>
+          <p>Enter the combined input and output for all calls and retries per job. The starting ranges are examples.</p>
           {[['inputLow', 'Low input tokens per role'], ['inputHigh', 'High input tokens per role'],
             ['outputLow', 'Low output tokens per role'], ['outputHigh', 'High output tokens per role']].map(([key, label]) =>
             <NumberField key={key} label={label} max={limits.tokens} value={form[key]} onChange={v => setField(key, v)} />)}
@@ -217,9 +231,13 @@ export default function Budget({ state, refresh, notify }) {
               <a href={card.source} onClick={openRateSource} onAuxClick={event => { if (event.button === 1) openRateSource(event) }}>
                 View {card.label} pricing
               </a>
-            </p> : <p>Illustrative rates. Enter your model’s prices.</p>}
-            <NumberField label="Input USD per million tokens" value={form.rates[form.provider].input} max={limits.rate} fractional onChange={v => setRate('input', v)} />
-            <NumberField label="Output USD per million tokens" value={form.rates[form.provider].output} max={limits.rate} fractional onChange={v => setRate('output', v)} />
+            </p> : <p>Enter your provider’s USD prices per million text tokens. Use 0 for a verified free rate.</p>}
+            <NumberField optional label="Input USD per million tokens" value={form.rates[form.provider].input} max={limits.rate} fractional onChange={v => setRate('input', v)} />
+            <NumberField optional label="Output USD per million tokens" value={form.rates[form.provider].output} max={limits.rate} fractional onChange={v => setRate('output', v)} />
+            {prices.needsReview && <div><p>Your previous budget contains example rates. Verify the prices before using this forecast.</p>
+              <Button type="button" disabled={prices.input == null || prices.input === '' || prices.output == null || prices.output === '' || Boolean(error)}
+                onClick={() => setRate('needsReview', false)}>Use these prices</Button>
+            </div>}
           </>}
           {form.provider === 'ollama' && <p>Local model fees are $0. Hardware and electricity are excluded.</p>}
           {isSubscription && <>

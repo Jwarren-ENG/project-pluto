@@ -124,7 +124,7 @@ async function start(){
   const methods={
     'workspace.snapshot':()=>workspace.snapshot(),
     'workspace.saveJob':p=>workspace.saveJob(p),'workspace.saveNote':p=>workspace.saveNote(p),
-    'workspace.saveProfile':p=>workspace.saveProfile(p),
+    'workspace.saveProfile':p=>workspace.saveProfile(p),'workspace.saveReviewedProfile':p=>workspace.saveReviewedProfile(p),
     'workspace.saveSchedule':p=>workspace.saveSchedule({...p,lastRunDate:workspace.snapshot().schedule?.lastRunDate||''}),
     'discovery.search':async({query})=>{
       const result=await sources.search({query});
@@ -134,9 +134,10 @@ async function start(){
     },
     'discovery.status':()=>({latest:config.prefs.get('discoveryResults'),run:config.prefs.get('discoveryRun')}),
     'application.open':p=>openApplication(p.id),'application.pdf':p=>exportPdf(jobById(p.id)),'application.drivePdf':p=>saveDrivePdf(p),
+    'providers.draft':p=>providers.draft({profile:workspace.getProfile(),job:p.job}),
     'app.openExternal':p=>openExternal(p.url),'resume.pick':()=>resume.pick()
   };
-  for(const action of ['settings','configure','test','disconnect','draft','search','subscriptionStatus','models','fallbackStatus','enableFallback','disableFallback','setFallbackModel'])methods['providers.'+action]=p=>providers[action](p);
+  for(const action of ['settings','configure','test','disconnect','search','subscriptionStatus','models','fallbackStatus','enableFallback','disableFallback','setFallbackModel'])methods['providers.'+action]=p=>providers[action](p);
   for(const action of ['list','add','setEnabled','remove'])methods['sources.'+action]=p=>sources[action](p);
   methods['mail.scan']=p=>jobMail.scan(p);
   for(const action of ['settings','connect','disconnect','cancel'])methods['drive.'+action]=p=>drive[action](p);

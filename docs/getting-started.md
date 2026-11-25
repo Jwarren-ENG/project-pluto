@@ -1,6 +1,6 @@
 # Getting started with Project Pluto
 
-This guide shows **Project Pluto v0.2.1**. Older GitHub installers may show different screens.
+This guide shows **Project Pluto v0.2.2**. Older GitHub installers may show different screens.
 
 This walkthrough takes you from an empty workspace to a saved employer receipt. The screenshots follow a fictional applicant tracking an Inventory Analyst opening at Harborline Books. You can follow along with a real posting and leave it at **Saved** until you’re ready to apply.
 
@@ -14,9 +14,19 @@ Launch **Project Pluto** on your Mac or Windows computer. The first screen, **To
 
 Use **Choose résumé file** to open a PDF, DOCX or TXT file up to 5 MiB, or expand **Paste résumé text**. If a scanned PDF gives you empty or jumbled text, paste a readable copy. Then select **Review facts**.
 
-Under **Facts to keep**, open **View source** to compare a suggestion with your original wording. Edit the fact or clear its checkbox. If the original résumé text also needs a correction, use **Back** to edit it. Continue to preferences, enter any target roles or locations, then select **Review profile**. Check the confirmation box and choose **Save confirmed profile**. You can return to **Profile → Edit profile** later.
+Under **Facts to keep**, open **View source** to compare a suggestion with your original wording. Edit the fact or clear its checkbox. If the original résumé text also needs a correction, use **Back** to edit it. Choose **Continue to preferences** and enter any target roles or locations.
 
 ![A résumé fact about tracking bookshop stock, with its checkbox selected and the original source text expanded below.](images/review-resume-fact.png)
+
+On **Set your job preferences**, find **Experience stories** and choose **Add story**. Give your example a title and describe the context, what you did, and the result. Morgan’s book swap is an example from outside work. For the result, Morgan describes how families could find the right shelf on their own.
+
+A new story starts with **Use in application drafts** unchecked. Select it if you want your drafting provider to receive that story when you request a draft, then choose **Save story**. You can change that permission later with **Edit story**.
+
+![Experience stories showing a bookshop example allowed in drafts and an expanded volunteer book swap marked Local only.](images/profile-example.png)
+
+Choose **Edit application answers** to keep private details handy for employer forms, such as your availability or work authorization by country. Leave a yes/no question **Unanswered** until you have an answer. Choose **Save answers**, then use **Review saved answers** to check what you entered. These details stay out of AI drafts.
+
+During setup, the stories and answers are held for your final review. Choose **Review profile**, check the confirmation box, and select **Save confirmed profile**. When you return to **Profile**, you can save changes directly in each editor or choose **Cancel** to discard an edit.
 
 ## 3. Find an opening
 

@@ -45,11 +45,11 @@ try {
   for (const saved of ['custom', 'subscription']) {
     await open({ ...budgetDefaults(), provider: saved }, codex)
     assert.equal(await scenario.inputValue(), saved)
-    assert.ok(!calls.includes('providers.settings'))
+    assert.ok(calls.includes('providers.settings'))
     assert.ok(!calls.includes('workspace.saveProfile'))
   }
   for (const settings of [
-    () => ({ activeProvider: 'openai', providers: { codex: { configured: true } } }),
+    () => ({ activeProvider: 'openai', providers: { openai: { model: 'gpt-4.1-mini' } } }),
     () => ({ activeProvider: null }),
     () => { throw new Error('Unavailable') },
   ]) {
@@ -57,6 +57,27 @@ try {
     assert.equal(await scenario.inputValue(), 'openai')
     assert.equal(budget, null)
   }
+
+  await open(null, () => ({ activeProvider: 'anthropic', providers: {anthropic:{model:'claude-sonnet-4-6'}} }))
+  await waitForValue('anthropic')
+  await page.getByText('Draft connection:', {exact:false}).waitFor()
+  assert.match(await page.locator('#budget-daily-estimate').innerText(), /\$0.105 to \$0.30/)
+  await open(null, () => ({ activeProvider:'gemini', providers:{gemini:{model:'fixture-model'}} }))
+  await waitForValue('custom')
+  assert.match(await page.locator('#budget-daily-estimate').innerText(), /Price needed/)
+  assert.match(await page.locator('.budget-month figcaption').innerText(), /Cumulative token usage/)
+  await page.getByText('Token and pricing assumptions', {exact:true}).click()
+  const inputPrice = page.getByLabel('Input USD per million tokens', {exact:true})
+  const outputPrice = page.getByLabel('Output USD per million tokens', {exact:true})
+  await inputPrice.fill('0')
+  assert.match(await page.locator('#budget-daily-estimate').innerText(), /Price needed/)
+  await outputPrice.fill('2')
+  assert.match(await page.locator('#budget-daily-estimate').innerText(), /\$0.006 to \$0.016/)
+  await open({ version:1, provider:'openrouter', rates:{openrouter:{input:1,output:4}} }, codex)
+  await page.getByText('Token and pricing assumptions', {exact:true}).click()
+  assert.match(await page.locator('#budget-daily-estimate').innerText(), /Price needed/)
+  await page.getByRole('button',{name:'Use these prices'}).click()
+  assert.match(await page.locator('#budget-daily-estimate').innerText(), /\$0.032 to \$0.092/)
 
   for (const action of ['edit', 'save', 'navigate']) {
     const pending = Promise.withResolvers()

@@ -376,6 +376,11 @@ export function createProviders({ secrets, prefs, openExternal, codex, omniRoute
     } else {
       Object.assign(applicant, selectedFields(profile, ['resumeText']))
     }
+    if (Array.isArray(profile?.experienceStories)) {
+      const stories = profile.experienceStories.filter(story => story?.useInDrafts === true && typeof story.action === 'string' && story.action.trim())
+        .map(story => selectedFields(story, ['title', 'context', 'action', 'result']))
+      if (stories.length) applicant.experienceStories = stories
+    }
     const listing = selectedFields(job, ['company', 'title', 'description', 'location', 'salary'])
     if (!Object.keys(applicant).length || !Object.keys(listing).length) throw new Error('Add a profile and a job before drafting.')
     const prompt = JSON.stringify({ profile: applicant, job: listing })

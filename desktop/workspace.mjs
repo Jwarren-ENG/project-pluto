@@ -4,6 +4,7 @@ import {
   readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync,
 } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 import { DatabaseSync } from 'node:sqlite'
 
 const stages = ['Saved', 'Preparing', 'Applied', 'Interview', 'Offer', 'Closed']
@@ -295,6 +296,19 @@ export function createWorkspace(directory) {
     saveJob,
     saveNote: input => transaction(db, () => storeNote(input)),
     saveProfile: input => transaction(db, () => set('profile', { ...setting('profile'), ...object(input, 'profile') })),
+    getProfile: () => setting('profile'),
+    saveReviewedProfile: ({ changes, expected }) => transaction(db, () => {
+      object(changes, 'profile changes')
+      object(expected, 'original profile values')
+      const profile = setting('profile') || {}
+      for (const [key, next] of Object.entries(changes)) {
+        if (!Object.hasOwn(expected, key)) throw new Error('Missing original profile value.')
+        if (!isDeepStrictEqual(profile[key] ?? null, expected[key]) && !isDeepStrictEqual(profile[key], next)) {
+          throw new Error('This profile changed while you were editing. Reopen the editor to review the latest version.')
+        }
+      }
+      return set('profile', { ...profile, ...changes })
+    }),
     saveSchedule: input => transaction(db, () => {
       object(input, 'schedule')
       const result = { ...defaults, ...setting('schedule') }

@@ -239,3 +239,20 @@ test('a vault created under the old product name keeps the same pages', t => {
   assert.equal(readdirSync(vault).filter(name => name.toLowerCase() === 'project pluto').length, 1)
   assert.ok(readdirSync(old).some(name => name.endsWith(job.id + '.md')))
 })
+
+test('reviewed profile changes preserve concurrent edits and reject an entire stale write', t => {
+  const { ws } = setup(t)
+  const story = { title:'Campus garden', action:'Planted beans', useInDrafts:false }
+  ws.saveReviewedProfile({changes:{experienceStories:[story]}, expected:{experienceStories:null}})
+  ws.saveProfile({budget:{jobsPerDay:25},applicationAnswers:{availability:'July'}})
+  const revised = { ...story, useInDrafts:true }
+  const update = {changes:{experienceStories:[revised]}, expected:{experienceStories:[story]}}
+  ws.saveReviewedProfile(update)
+  ws.saveReviewedProfile(update)
+  assert.throws(() => ws.saveReviewedProfile({
+    changes:{experienceStories:[],summary:'Stale write'},
+    expected:{experienceStories:[story],summary:null},
+  }), /changed/)
+  assert.throws(() => ws.saveReviewedProfile({changes:{summary:'No precondition'},expected:{}}), /original/)
+  assert.deepEqual(ws.getProfile(), {experienceStories:[revised],budget:{jobsPerDay:25},applicationAnswers:{availability:'July'}})
+})

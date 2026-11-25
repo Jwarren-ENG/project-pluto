@@ -42,7 +42,7 @@ test('subscription reports workload, leaves unknown fees unspecified, and alloca
 })
 
 test('blank, inverted, negative, fractional job counts and nonfinite inputs fail validation', () => {
-  for (const [key, value] of [['jobsPerDay', ''], ['jobsPerDay', false], ['jobsPerDay', 2.5], ['jobsPerDay', 1001], ['inputLow', 7000], ['outputHigh', 2], ['inputHigh', Infinity], ['toolCostPerRole', -1], ['monthlySubscription', NaN], ['provider', 'constructor'], ['version', 2]]) {
+  for (const [key, value] of [['jobsPerDay', ''], ['jobsPerDay', false], ['jobsPerDay', 2.5], ['jobsPerDay', 1001], ['inputLow', 7000], ['outputHigh', 2], ['inputHigh', Infinity], ['toolCostPerRole', -1], ['monthlySubscription', NaN], ['provider', 'constructor'], ['version', 999]]) {
     assert.throws(() => normalizeBudget({ ...budgetDefaults(), [key]: value }))
   }
   const form = budgetDefaults()
@@ -106,4 +106,25 @@ test('selected-day estimates use local tool fees and preserve subscription fee a
   form.monthlySubscription = 30
   form.jobsPerDay = 0
   assert.deepEqual(estimateBudget(form).days[4], { jobs: 0, tokens: [0, 0], modelFees: null, tools: 0, subscription: 4, total: [4, 4] })
+})
+
+test('missing or legacy example rates do not produce a dollar forecast until confirmed', () => {
+  const form = { ...budgetDefaults(), provider:'openrouter', toolCostPerRole:0.05 }
+  let est = estimateBudget(form)
+  assert.equal(est.day.total, null)
+  assert.equal(est.day.tools, 0.5)
+  assert.deepEqual(est.days[0].total, [0,0])
+  const saved = loadBudget({ ...form, version:1, rates:{openrouter:{input:1,output:4}} })
+  assert.deepEqual(saved.rates.openrouter, {input:1,output:4,needsReview:true})
+  assert.equal(estimateBudget(loadBudget(normalizeBudget(saved))).day.total, null)
+  saved.rates.openrouter.needsReview = false
+  assert.deepEqual(estimateBudget(saved).day.total, [0.532,0.592])
+  form.rates.openrouter = { input:0, output:0 }
+  assert.deepEqual(estimateBudget(loadBudget(normalizeBudget(form))).day.total,[0.5,0.5])
+  form.rates.openrouter.output = null
+  assert.equal(estimateBudget(form).day.total,null)
+  form.outputHigh = form.outputLow = 0
+  assert.deepEqual(estimateBudget(form).day.total,[0.5,0.5])
+  assert.deepEqual(estimateBudget({...form,provider:'subscription'}).days[0].total,[0,0])
+  assert.equal(loadBudget({version:1,rates:{custom:{input:2,output:7}}}).rates.custom.needsReview,undefined)
 })
