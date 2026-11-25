@@ -1,4 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { Button } from './components/ui/button.jsx'
+import { Input } from './components/ui/input.jsx'
+import { Textarea } from './components/ui/textarea.jsx'
 
 const TEXT_LIMIT = 80_000
 const EXCERPT_LIMIT = 8000
@@ -79,6 +82,15 @@ export function reviewedChanges(original, latest, reviewed) {
   return changes
 }
 
+function SourceDetails({ source, quote, section }) {
+  if (!source && !quote) return null
+  return <details>
+    <summary>View source</summary>
+    <p>{source || 'Saved profile'}{section && ' · ' + section}</p>
+    {quote && <blockquote>{quote}</blockquote>}
+  </details>
+}
+
 function Wizard({ original, refresh, notify, close, editing }) {
   const [step, setStep] = useState(0)
   const [resume, setResume] = useState(valueOf(original.resumeText))
@@ -157,10 +169,11 @@ function Wizard({ original, refresh, notify, close, editing }) {
   function editRow(index, updates) { setRows(rows.map((row, i) => i === index ? { ...row, ...updates } : row)) }
   function fieldInput(key, label) {
     const props = { 'aria-label': label, value: fields[key], onChange: event => setFields({ ...fields, [key]: event.target.value }) }
-    return <label key={key}>{label}
-      {key === 'summary' ? <textarea rows={3} {...props}/> : <input type={key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text'} {...props}/>}
-      {evidence[key] && <small>From {source} · {evidence[key]}</small>}
+    return <div key={key}><label>{label}
+      {key === 'summary' ? <Textarea rows={3} {...props}/> : <Input type={key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text'} {...props}/>}
     </label>
+      {evidence[key] && <SourceDetails source={source} quote={evidence[key]}/>}
+    </div>
   }
 
   async function save() {
@@ -183,18 +196,20 @@ function Wizard({ original, refresh, notify, close, editing }) {
       <legend>{['Résumé source', 'Profile details', 'Search preferences', 'Profile to save'][step]}</legend>
       {step === 0 && <>
         <p>Choose a résumé or paste its text. You can edit what PLUTO finds before saving it locally.</p>
-        <button type="button" onClick={() => run(async () => {
+        <Button type="button" onClick={() => run(async () => {
           const file = await window.pluto.call('resume.pick', {})
           if (file) { setResume(file.text); setSource(file.name) }
-        })}>Choose résumé file</button>
+        })}>Choose résumé file</Button>
         <small>PDF, DOCX or TXT · up to 5 MiB</small>
-        <label>Résumé text{source !== 'Résumé' ? ' · ' + source : ''}
-          <textarea rows={8} maxLength={TEXT_LIMIT} value={resume} onChange={e => { setResume(e.target.value); setSource('Pasted résumé text') }}
+        {resume && <p>{source} · {resume.length.toLocaleString()} characters</p>}
+        <details><summary>{resume ? 'View or edit résumé text' : 'Paste résumé text'}</summary>
+        <label>Résumé text
+          <Textarea rows={8} maxLength={TEXT_LIMIT} value={resume} onChange={e => { setResume(e.target.value); setSource('Pasted résumé text') }}
             placeholder="Paste or edit the text you want to keep"/>
-        </label>
+        </label></details>
         <details><summary>Add a selected chat excerpt (optional)</summary>
           <p>Paste a passage or choose a text file containing just that passage. Only the phrases you select in the next step are saved.</p>
-          <label>Import excerpt from a TXT file<input type="file" accept=".txt,text/plain" onChange={event => {
+          <label>Import excerpt from a TXT file<Input type="file" accept=".txt,text/plain" onChange={event => {
             const file = event.target.files?.[0]
             event.target.value = ''
             if (!file) return
@@ -206,10 +221,10 @@ function Wizard({ original, refresh, notify, close, editing }) {
               setExcerpt(value); setAllowExcerpt(false)
             })
           }}/></label>
-          <label>Selected chat excerpt<textarea rows={4} maxLength={EXCERPT_LIMIT} value={excerpt} onChange={e => {
+          <label>Selected chat excerpt<Textarea rows={4} maxLength={EXCERPT_LIMIT} value={excerpt} onChange={e => {
             setExcerpt(e.target.value); setAllowExcerpt(false)
           }}/></label>
-          <label><input type="checkbox" disabled={!excerpt.trim()} checked={allowExcerpt}
+          <label><Input type="checkbox" className="size-4 shrink-0 p-0 shadow-none" disabled={!excerpt.trim()} checked={allowExcerpt}
             onChange={e => setAllowExcerpt(e.target.checked)}/>Use only this excerpt to suggest profile facts</label>
         </details>
       </>}
@@ -220,46 +235,49 @@ function Wizard({ original, refresh, notify, close, editing }) {
         {rows.slice(factPage * 5, factPage * 5 + 5).map((row, offset) => {
           const index = factPage * 5 + offset
           return <fieldset key={index}>
-          <legend>{row.source || 'Saved profile'}{row.section ? ' · ' + row.section : ''}</legend>
-          <label><input type="checkbox" checked={row.included} onChange={e => editRow(index, { included: e.target.checked })}/>Keep fact {index + 1}</label>
-          <label>Fact {index + 1}<textarea aria-label={'Fact ' + (index + 1)} rows={2} value={row.text} onChange={e => editRow(index, { text: e.target.value })}/></label>
-          {row.quote && <details><summary>Source wording</summary><blockquote>{row.quote}</blockquote></details>}
+          <legend>{row.section || 'Profile fact'}</legend>
+          <label><Input type="checkbox" className="size-4 shrink-0 p-0 shadow-none" checked={row.included} onChange={e => editRow(index, { included: e.target.checked })}/>Keep fact {index + 1}</label>
+          <label>Fact {index + 1}<Textarea aria-label={'Fact ' + (index + 1)} rows={2} value={row.text} onChange={e => editRow(index, { text: e.target.value })}/></label>
+          <SourceDetails source={row.source} quote={row.quote} section={row.section}/>
         </fieldset>})}
         {rows.length > 5 && <div className="actions">
-          <button type="button" disabled={factPage === 0} onClick={() => setFactPage(factPage - 1)}>Previous facts</button>
+          <Button type="button" variant="outline" disabled={factPage === 0} onClick={() => setFactPage(factPage - 1)}>Previous facts</Button>
           <span aria-live="polite">Facts {factPage * 5 + 1}–{Math.min(rows.length, factPage * 5 + 5)} of {rows.length}</span>
-          <button type="button" disabled={(factPage + 1) * 5 >= rows.length} onClick={() => setFactPage(factPage + 1)}>Next facts</button>
+          <Button type="button" variant="outline" disabled={(factPage + 1) * 5 >= rows.length} onClick={() => setFactPage(factPage + 1)}>Next facts</Button>
         </div>}
         {omitted && <p>Some source lines exceed the suggestion limits. Add any missing fact below.</p>}
-        <button type="button" onClick={() => {
+        <Button type="button" onClick={() => {
           setFactPage(Math.floor(rows.length / 5))
           setRows([...rows, { text: '', source: 'Entered by you', included: true }])
-        }}>Add a fact</button>
+        }}>Add a fact</Button>
       </>}
       {step === 2 && <>
         <p>Tell PLUTO which opportunities you want to see. You can leave either preference open.</p>
         {Object.entries(preferences).map(([key, label]) =>
-          (!original[key] && !evidence[key]) || editPreferences ? fieldInput(key, label) : <p key={key}><strong>{label}</strong> · {fields[key]}{evidence[key] && <small> · From {source}: {evidence[key]}</small>}</p>)}
+          (!original[key] && !evidence[key]) || editPreferences ? fieldInput(key, label) : <div key={key}>
+            <p><strong>{label}</strong> · {fields[key]}</p>
+            {evidence[key] && <SourceDetails source={source} quote={evidence[key]}/>}
+          </div>)}
         {!editPreferences && Object.keys(preferences).some(key => original[key] || evidence[key]) &&
-          <button type="button" onClick={() => setEditPreferences(true)}>Edit preferences</button>}
+          <Button type="button" variant="outline" onClick={() => setEditPreferences(true)}>Edit preferences</Button>}
       </>}
       {step === 3 && <>
         <dl>{Object.entries({ ...profileFields, ...preferences }).map(([key, label]) =>
           <React.Fragment key={key}><dt>{label}</dt><dd>{fields[key] || 'Unspecified'}</dd></React.Fragment>)}</dl>
         <h3>{included.length} {included.length === 1 ? 'selected fact' : 'selected facts'}</h3>
-        <ul>{included.map((row, i) => <li key={i}>{row.text} <small>({row.source || 'Saved profile'})</small></li>)}</ul>
+        <ul>{included.map((row, i) => <li key={i}>{row.text}<SourceDetails source={row.source} quote={row.quote} section={row.section}/></li>)}</ul>
         {resume && <details><summary>Résumé text to save · {source}</summary><p style={{whiteSpace: 'pre-wrap'}}>{resume}</p></details>}
-        <label><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)}/>I confirm these details and selected sources for my profile.</label>
+        <label><Input type="checkbox" className="size-4 shrink-0 p-0 shadow-none" checked={confirmed} onChange={e => setConfirmed(e.target.checked)}/>I confirm these details and selected sources for my profile.</label>
       </>}
     </fieldset>
     {error && <p role="alert">{error}</p>}
     {busy && <p role="status">{step === 3 ? 'Saving profile…' : 'Reading file…'}</p>}
     <div className="actions">
-      {step !== 0 && <button type="button" disabled={busy} onClick={() => changeStep(step - 1)}>Back</button>}
-      {editing && <button type="button" disabled={busy} onClick={() => close()}>Cancel edits</button>}
-      {step === 0 ? <button type="button" disabled={busy} onClick={review}>Review facts</button>
-        : step === 3 ? <button type="button" disabled={busy || !confirmed} onClick={() => run(save)}>Save confirmed profile</button>
-        : <button type="button" disabled={busy} onClick={() => changeStep(step + 1)}>{step === 1 ? 'Continue to preferences' : 'Review profile'}</button>}
+      {step !== 0 && <Button type="button" variant="outline" disabled={busy} onClick={() => changeStep(step - 1)}>Back</Button>}
+      {editing && <Button type="button" variant="ghost" disabled={busy} onClick={() => close()}>Cancel edits</Button>}
+      {step === 0 ? <Button type="button" disabled={busy} onClick={review}>Review facts</Button>
+        : step === 3 ? <Button type="button" disabled={busy || !confirmed} onClick={() => run(save)}>Save confirmed profile</Button>
+        : <Button type="button" disabled={busy} onClick={() => changeStep(step + 1)}>{step === 1 ? 'Continue to preferences' : 'Review profile'}</Button>}
     </div>
   </section>
 }
@@ -281,6 +299,6 @@ export default function Profile({ state, refresh, notify }) {
     {saved.targetRoles && <p><strong>Target roles</strong> · {saved.targetRoles}</p>}
     {saved.location && <p><strong>Preferred work locations</strong> · {saved.location}</p>}
     <p>{savedRows(saved).length} confirmed facts</p>
-    <button type="button" onClick={() => setSession(saved)}>Edit profile</button>
+    <Button type="button" onClick={() => setSession(saved)}>Edit profile</Button>
   </section>
 }

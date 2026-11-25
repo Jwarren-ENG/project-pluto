@@ -186,7 +186,7 @@ test('review saves one stable note on the chosen job in the actual workspace', a
   const workspace = createWorkspace(dir)
   let server
   t.after(async () => { await server?.close(); workspace.close(); await rm(dir, { recursive: true, force: true }) })
-  server = await createServer({ configFile: false, cacheDir: path.join(dir, 'vite'), logLevel: 'silent',
+  server = await createServer({ cacheDir: path.join(dir, 'vite'), logLevel: 'silent',
     server: { middlewareMode: true, hmr: false, watch: null }, optimizeDeps: { noDiscovery: true } })
   const { linkReviewedReply } = await server.ssrLoadModule('/ui/Mail.jsx')
   const one = workspace.saveJob({ company: 'Acme', title: 'Product', url: 'https://one.example' })

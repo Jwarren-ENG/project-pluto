@@ -1,4 +1,8 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { Button } from './components/ui/button'
+import { Input } from './components/ui/input'
+import { Textarea } from './components/ui/textarea'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table'
 
 const stages = ['Saved', 'Preparing', 'Applied', 'Interview', 'Offer', 'Closed']
 const employerStages = new Set(['Applied', 'Interview', 'Offer', 'Closed'])
@@ -25,13 +29,13 @@ function receiptText(value) {
 function RecordHistory({ job }) {
   const sent = job.submittedSnapshot
   return <>
-    {sent && <details className="panel"><summary>Submitted copy</summary>
+    {sent && <details className="border-t py-4"><summary className="cursor-pointer font-medium">Submitted copy</summary>
       <p>{sent.company} · {sent.title} · <time dateTime={sent.submittedAt}>{new Date(sent.submittedAt).toLocaleString()}</time></p>
       <h3>Employer receipt</h3><pre>{receiptText(sent.evidence)}</pre>
       <h3>Submitted résumé</h3><pre>{sent.resumeText || 'No résumé text was recorded.'}</pre>
       <h3>Submitted draft</h3><pre>{sent.draft || 'No draft text was recorded.'}</pre>
     </details>}
-    {!!job.history?.length && <details className="panel"><summary>Application history</summary>
+    {!!job.history?.length && <details className="border-t py-4"><summary className="cursor-pointer font-medium">Application history</summary>
       <ol>{job.history.slice().reverse().map((e, i) => <li key={e.recordedAt + '/' + i}>
         <strong>{e.stage}</strong> · <time dateTime={e.recordedAt}>{new Date(e.recordedAt).toLocaleString()}</time>
         {e.evidence && <pre>{receiptText(e.evidence)}</pre>}
@@ -121,63 +125,75 @@ function JobEditor({ initial, state, refresh, notify, close }) {
       if (wrote) notify('Reviewed résumé PDF saved.')
     })
   }
+
   const input = (key, label, options = {}) => <label>{label}
-    <input {...options} value={form[key]} onChange={e => change(key, e.target.value)} />
+    <Input {...options} aria-label={label} value={form[key]} disabled={!!busy} onChange={e => change(key, e.target.value)} />
   </label>
   return <div className="stack">
     <form className="stack" onSubmit={save}>
-      <section className="panel stack">
-        <div className="section-heading"><h2>{base.id ? base.title : 'New application'}</h2>
-          <button type="button" className="secondary" disabled={!!busy} onClick={close}>{hasChanges || suggestion ? 'Discard changes and close' : 'Close'}</button>
+      <header className="section-heading pb-4">
+        <h2>{base.id ? base.title : 'New application'}</h2>
+        <Button type="button" variant="ghost" size="sm" disabled={!!busy} onClick={close}>
+          {hasChanges || suggestion ? 'Discard changes and close' : 'Close'}
+        </Button>
+      </header>
+      <section className="space-y-3 border-t py-5" aria-labelledby="role-details-heading">
+        <div className="section-heading"><h3 id="role-details-heading">Role details</h3>
+          <Button type="button" variant="outline" size="sm" onClick={openEmployer}
+            disabled={!!busy || !base.id || !base.url || form.url !== base.url}>Open employer application</Button>
         </div>
-        <fieldset className="field-grid" disabled={!!busy}><legend>Role details</legend>
-          {input('company', 'Company', { required: true })}
+        <div className="field-grid">
+          {input('company', 'Company', { required: true, autoFocus: true })}
           {input('title', 'Job title', { required: true })}
-          {input('url', 'Employer posting URL', { type: 'url', placeholder: 'https://' })}
           {input('location', 'Location')}
           {input('salary', 'Base salary')}
-        </fieldset>
-        <label>Job description<textarea rows={4} value={form.description} disabled={!!busy} onChange={e => change('description', e.target.value)} /></label>
-        <div className="toolbar"><button type="button" className="secondary" onClick={openEmployer}
-          disabled={!!busy || !base.id || !base.url || form.url !== base.url}>Open employer application</button>
-          {!!form.url && (!base.id || form.url !== base.url) && <small className="muted">Save this posting to open the employer form.</small>}
         </div>
+        {input('url', 'Employer posting URL', { type: 'url', placeholder: 'https://' })}
+        {!!form.url && (!base.id || form.url !== base.url) && <small className="muted">Save this posting to open the employer form.</small>}
+        <label>Job description<Textarea aria-label="Job description" rows={4} value={form.description} disabled={!!busy} onChange={e => change('description', e.target.value)} /></label>
       </section>
-      <section className="panel stack"><h2>Application materials</h2>
-        <label>Reviewed résumé text<textarea rows={6} value={form.resumeText} disabled={!!busy} onChange={e => change('resumeText', e.target.value)} /></label>
-        <div className="buttons">
-          {profile?.resumeText && <button type="button" className="secondary" disabled={!!busy || form.resumeText === profile.resumeText}
-            onClick={() => change('resumeText', profile.resumeText)}>{form.resumeText ? 'Replace with profile résumé' : 'Use profile résumé'}</button>}
-          <button type="button" className="secondary" disabled={!!busy || !base.id || !base.resumeText?.trim() || form.resumeText !== base.resumeText}
-            onClick={printResume}>Save résumé PDF</button>
+      <section className="space-y-3 border-t py-5" aria-labelledby="materials-heading">
+        <h3 id="materials-heading">Application materials</h3>
+        <label>Reviewed résumé text<Textarea aria-label="Reviewed résumé text" rows={6} value={form.resumeText} disabled={!!busy} onChange={e => change('resumeText', e.target.value)} /></label>
+        <div className="toolbar">
+          {profile?.resumeText && <Button type="button" variant="outline" size="sm" disabled={!!busy || form.resumeText === profile.resumeText}
+            onClick={() => change('resumeText', profile.resumeText)}>{form.resumeText ? 'Replace with profile résumé' : 'Use profile résumé'}</Button>}
+          <Button type="button" variant="outline" size="sm" disabled={!!busy || !base.id || !base.resumeText?.trim() || form.resumeText !== base.resumeText}
+            onClick={printResume}>Save résumé PDF</Button>
         </div>
         {form.resumeText.trim() && form.resumeText !== base.resumeText && <small className="muted">Save your edits before exporting the PDF.</small>}
-        <label>Application draft<textarea rows={5} value={form.draft} disabled={!!busy} onChange={e => change('draft', e.target.value)} /></label>
-        <div className="toolbar"><button type="button" className="secondary" onClick={generate} disabled={!!busy || !canDraft || suggestion !== null}>
-          {busy === 'Drafting' ? 'Drafting…' : 'Draft with AI'}</button>
+        <label>Application draft<Textarea aria-label="Application draft" rows={5} value={form.draft} disabled={!!busy} onChange={e => change('draft', e.target.value)} /></label>
+        <div className="toolbar">
+          <Button type="button" variant="outline" size="sm" onClick={generate} disabled={!!busy || !canDraft || suggestion !== null}>
+            {busy === 'Drafting' ? 'Drafting…' : 'Draft with AI'}
+          </Button>
           <small className="muted">{canDraft ? 'Uses the reviewed profile and this role with your connected provider.' : 'Add a reviewed profile and job title to draft with AI.'}</small>
         </div>
-        {suggestion !== null && <fieldset className="stack"><legend>Suggested replacement</legend><pre>{suggestion}</pre>
-          <div className="buttons"><button type="button" className="secondary" onClick={() => { change('draft', suggestion); setSuggestion(null) }}>Use suggested draft</button>
-            <button type="button" className="secondary" onClick={() => setSuggestion(null)}>Keep my draft</button></div>
-        </fieldset>}
+        {suggestion !== null && <section aria-label="Suggested replacement" className="space-y-2 border-l pl-4">
+          <h4>Suggested replacement</h4><pre>{suggestion}</pre>
+          <div className="toolbar">
+            <Button type="button" variant="outline" size="sm" onClick={() => { change('draft', suggestion); setSuggestion(null) }}>Use suggested draft</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setSuggestion(null)}>Keep my draft</Button>
+          </div>
+        </section>}
       </section>
-      <section className="panel stack"><h2>Application status</h2>
-        <fieldset className="field-grid" disabled={!!busy}><legend>Progress</legend>
-          <label>Stage<select value={form.stage} onChange={e => change('stage', e.target.value)}>
+      <section className="space-y-3 border-t py-5" aria-labelledby="application-status-heading">
+        <h3 id="application-status-heading">Application status</h3>
+        <div className="field-grid">
+          <label>Stage<select aria-label="Stage" value={form.stage} disabled={!!busy} onChange={e => change('stage', e.target.value)}>
             {stages.map(stage => <option key={stage}>{stage}</option>)}
           </select></label>
           {(form.stage === 'Interview' || base.interviewAt) && input('interviewAt', 'Interview time (local)', { type: 'datetime-local' })}
-        </fieldset>
+        </div>
         <label>{needsProof ? 'Employer evidence (required)' : 'Add employer evidence'}
-          <textarea rows={3} value={form.evidence} disabled={!!busy} required={needsProof}
-            placeholder="Receipt text, confirmation number or employer reply" onChange={e => change('evidence', e.target.value)} />
+          <Textarea aria-label={needsProof ? 'Employer evidence (required)' : 'Add employer evidence'} rows={3} value={form.evidence}
+            disabled={!!busy} required={needsProof} placeholder="Receipt text, confirmation number or employer reply" onChange={e => change('evidence', e.target.value)} />
         </label>
         {needsProof && form.stage === 'Applied' && <p className="muted">Saving Applied records this receipt and freezes the résumé and draft shown above.</p>}
         {stale && <div role="status"><p>A newer version of this application was saved. Your edits are still in the form.</p>
-          <button className="secondary" type="button" onClick={() => load(latest)}>Discard edits and load saved version</button></div>}
+          <Button variant="outline" size="sm" type="button" onClick={() => load(latest)}>Discard edits and load saved version</Button></div>}
         {error && <p role="alert">{error}</p>}
-        <div className="buttons"><button className="primary" type="submit" disabled={!!busy || !!stale}>{busy === 'Saving' ? 'Saving…' : 'Save application'}</button></div>
+        <div className="toolbar"><Button type="submit" size="sm" disabled={!!busy || !!stale}>{busy === 'Saving' ? 'Saving…' : 'Save application'}</Button></div>
       </section>
     </form>
     <RecordHistory job={base} />
@@ -186,18 +202,51 @@ function JobEditor({ initial, state, refresh, notify, close }) {
 
 export default function Applications({ state, notify, refresh, seed, setSeed }) {
   const [filter, setFilter] = useState('')
+  const returnTo = useRef(null)
+  useEffect(() => {
+    if (!seed && returnTo.current) {
+      const target = document.getElementById(returnTo.current) ?? document.getElementById('add-role')
+      target?.focus()
+      returnTo.current = null
+    }
+  }, [seed])
+  function open(value, trigger) {
+    returnTo.current = trigger
+    setSeed(value)
+  }
   if (seed) {
     const job = seed.id ? state.jobs.find(j => j.id === seed.id) : seed
-    if (!job) return <section className="panel"><p>This application is unavailable.</p><button className="secondary" onClick={() => setSeed(null)}>All applications</button></section>
+    if (!job) return <section><p>This application is unavailable.</p><Button variant="outline" size="sm" onClick={() => setSeed(null)}>All applications</Button></section>
     return <JobEditor key={seed.id ?? JSON.stringify([seed.url, seed.title, seed.description])}
       initial={job} state={state} refresh={refresh} notify={notify} close={() => setSeed(null)} />
   }
-  const visible = state.jobs.filter(j => (j.company + ' ' + j.title + ' ' + j.stage).toLowerCase().includes(filter.trim().toLowerCase()))
-  return <section className="panel stack">
-    <div className="section-heading"><h2>Tracked roles</h2><button className="primary" onClick={() => setSeed({})}>Add role</button></div>
-    {!!state.jobs.length && <label>Find an application<input type="search" value={filter} onChange={e => setFilter(e.target.value)} /></label>}
-    {visible.length ? visible.map(j => <button key={j.id} className="record-row" onClick={() => setSeed({ id: j.id })}>
-      <span><strong>{j.title}</strong><small>{j.company}</small></span><span className="stage">{j.stage}</span>
-    </button>) : <p className="muted">{state.jobs.length ? 'No applications match this search.' : 'Add a role to start tracking its application.'}</p>}
+  const query = filter.trim().toLowerCase()
+  const visible = state.jobs.filter(j => (j.company + ' ' + j.title + ' ' + j.stage).toLowerCase().includes(query))
+  return <section aria-label="Tracked roles" className="stack">
+    <div className="section-heading pb-4">
+      {state.jobs.length > 0 ? <Input type="search" aria-label="Find an application" placeholder="Find an application" className="max-w-sm"
+        value={filter} onChange={e => setFilter(e.target.value)} /> : <h2>Tracked roles</h2>}
+      <Button id="add-role" type="button" size="sm" onClick={() => open({}, 'add-role')}>Add role</Button>
+    </div>
+    <Table aria-label="Applications">
+      <TableHeader><TableRow>
+        <TableHead scope="col">Company</TableHead><TableHead scope="col">Role</TableHead><TableHead scope="col">Stage</TableHead>
+      </TableRow></TableHeader>
+      <TableBody>
+        {visible.map(job => <TableRow key={job.id}>
+          <TableCell>{job.company}</TableCell>
+          <TableCell className="whitespace-normal">
+            <Button id={'open-role-' + job.id} type="button" variant="link" size="sm" className="h-auto whitespace-normal px-0 text-left"
+              aria-label={`Open ${job.title} at ${job.company}`} onClick={() => open({ id: job.id }, 'open-role-' + job.id)}>
+              {job.title}
+            </Button>
+          </TableCell>
+          <TableCell>{job.stage}</TableCell>
+        </TableRow>)}
+        {!visible.length && <TableRow><TableCell colSpan={3} className="whitespace-normal py-6">
+          {state.jobs.length ? 'No applications match this search.' : 'Add a role to start tracking its application.'}
+        </TableCell></TableRow>}
+      </TableBody>
+    </Table>
   </section>
 }

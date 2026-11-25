@@ -1,4 +1,8 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { Button } from './components/ui/button'
+import { Input } from './components/ui/input'
+import { Textarea } from './components/ui/textarea'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table'
 
 function SyncReport({ result }) {
   if (!result) return null
@@ -30,7 +34,18 @@ export default function Notebook({ state, notify, refresh, seed, setSeed }) {
   const stale = latest && latest.updatedAt !== editor.updatedAt
   const dirty = editor && ['title', 'body', 'jobId'].some(k => editor[k] !== original?.[k])
 
-  function open(note) {
+  const returnTo = useRef(null)
+  const editing = editor !== null
+  useEffect(() => {
+    if (!editing && returnTo.current) {
+      const target = document.getElementById(returnTo.current) ?? document.getElementById('new-note')
+      target?.focus()
+      returnTo.current = null
+    }
+  }, [editing])
+
+  function open(note, trigger) {
+    if (trigger) returnTo.current = trigger
     const value = note ?? { title: '', body: '', jobId: null }
     setOriginal(value)
     setEditor({ ...value })
@@ -80,37 +95,64 @@ export default function Notebook({ state, notify, refresh, seed, setSeed }) {
     const job = byId.get(n.jobId)
     return [n.title, n.body, job?.company, job?.title].join(' ').toLowerCase().includes(filter.trim().toLowerCase())
   })
+
   return <div className="stack">
-    {editor ? <form className="panel stack" onSubmit={save}>
-      <div className="section-heading"><h2>{editor.id ? 'Edit note' : 'New note'}</h2>
-        <button type="button" className="secondary" disabled={!!pending} onClick={close}>{dirty ? 'Discard changes and close' : 'Close'}</button></div>
-      <fieldset className="field-grid" disabled={!!pending}><legend>Note details</legend>
-        <label>Title<input required value={editor.title} onChange={e => setEditor({ ...editor, title: e.target.value })} /></label>
-        <label>Linked application<select value={editor.jobId ?? ''} onChange={e => setEditor({ ...editor, jobId: e.target.value || null })}>
+    {editor ? <form className="space-y-4" onSubmit={save}>
+      <header className="section-heading border-b pb-4"><h2>{editor.id ? 'Edit note' : 'New note'}</h2>
+        <Button type="button" variant="ghost" size="sm" disabled={!!pending} onClick={close}>
+          {dirty ? 'Discard changes and close' : 'Close'}
+        </Button>
+      </header>
+      <div className="field-grid">
+        <label>Title<Input aria-label="Title" autoFocus required value={editor.title} disabled={!!pending} onChange={e => setEditor({ ...editor, title: e.target.value })} /></label>
+        <label>Linked application<select aria-label="Linked application" value={editor.jobId ?? ''} disabled={!!pending}
+          onChange={e => setEditor({ ...editor, jobId: e.target.value || null })}>
           <option value="">General note</option>
           {state.jobs.map(j => <option value={j.id} key={j.id}>{j.company} · {j.title}</option>)}
         </select></label>
-      </fieldset>
-      <label>Markdown<textarea rows={10} value={editor.body} disabled={!!pending} onChange={e => setEditor({ ...editor, body: e.target.value })} /></label>
+      </div>
+      <label>Markdown<Textarea aria-label="Markdown" rows={10} value={editor.body} disabled={!!pending}
+        onChange={e => setEditor({ ...editor, body: e.target.value })} /></label>
       {stale && <div role="status"><p>A newer version was saved. Your edits are still in the form.</p>
-        <button type="button" className="secondary" onClick={() => open(latest)}>Discard edits and load saved version</button></div>}
-      <div className="buttons"><button className="primary" type="submit" disabled={!!pending || !!stale}>{pending === 'Saving' ? 'Saving…' : 'Save note'}</button></div>
-    </form> : <section className="panel stack">
-      <div className="section-heading"><h2>Notes</h2><button className="primary" disabled={!!pending} onClick={() => open(null)}>New note</button></div>
-      {state.notes.length > 0 && <label>Find a note<input type="search" value={filter} onChange={e => setFilter(e.target.value)} /></label>}
-      {visible.map(n => { const job = byId.get(n.jobId); return <button key={n.id} className="record-row" disabled={!!pending} onClick={() => open(n)}>
-        <span><strong>{n.title}</strong><small>{job ? job.company + ' · ' + job.title : 'General note'}</small></span>
-        <time className="muted" dateTime={n.updatedAt}>{new Date(n.updatedAt).toLocaleDateString()}</time>
-      </button> })}
-      {!visible.length && <p className="muted">{state.notes.length ? 'No notes match this search.' : 'Create a general note or link one to an application.'}</p>}
+        <Button type="button" variant="outline" size="sm" onClick={() => open(latest)}>Discard edits and load saved version</Button></div>}
+      <div className="toolbar"><Button size="sm" type="submit" disabled={!!pending || !!stale}>{pending === 'Saving' ? 'Saving…' : 'Save note'}</Button></div>
+    </form> : <section aria-label="Notes" className="stack">
+      <div className="section-heading pb-4">
+        {state.notes.length > 0 ? <Input type="search" aria-label="Find a note" placeholder="Find a note" className="max-w-sm"
+          value={filter} onChange={e => setFilter(e.target.value)} /> : <h2>Notes</h2>}
+        <Button type="button" id="new-note" size="sm" disabled={!!pending} onClick={() => open(null, 'new-note')}>New note</Button>
+      </div>
+      <Table aria-label="Notebook notes">
+        <TableHeader><TableRow>
+          <TableHead scope="col">Note</TableHead><TableHead scope="col">Linked application</TableHead><TableHead scope="col">Updated</TableHead>
+        </TableRow></TableHeader>
+        <TableBody>
+          {visible.map(note => {
+            const job = byId.get(note.jobId)
+            return <TableRow key={note.id}>
+              <TableCell className="whitespace-normal">
+                <Button type="button" id={'open-note-' + note.id} variant="link" size="sm" className="h-auto whitespace-normal px-0 text-left"
+                  disabled={!!pending} aria-label={`Edit ${note.title}`} onClick={() => open(note, 'open-note-' + note.id)}>{note.title}</Button>
+              </TableCell>
+              <TableCell className="whitespace-normal">{job ? job.company + ' · ' + job.title : 'General note'}</TableCell>
+              <TableCell><time dateTime={note.updatedAt}>{new Date(note.updatedAt).toLocaleDateString()}</time></TableCell>
+            </TableRow>
+          })}
+          {!visible.length && <TableRow><TableCell colSpan={3} className="whitespace-normal py-6">
+            {state.notes.length ? 'No notes match this search.' : 'Create a general note or link one to an application.'}
+          </TableCell></TableRow>}
+        </TableBody>
+      </Table>
     </section>}
     {error && <p role="alert">{error}</p>}
-    <section className="panel stack"><h2>Obsidian vault</h2>
-      <p className="muted">Choose your vault when syncing. Export includes notes, employer evidence and submitted materials.</p>
-      <div className="buttons">
-        <button type="button" className="secondary" disabled={!!pending} onClick={() => sync('Exporting')}>{pending === 'Exporting' ? 'Exporting…' : 'Export to vault'}</button>
-        <button type="button" className="secondary" disabled={!!pending} onClick={() => sync('Importing')}>{pending === 'Importing' ? 'Importing…' : 'Import vault edits'}</button>
+    <section className="mt-6 space-y-3 border-t py-5" aria-labelledby="vault-heading">
+      <div className="section-heading"><h2 id="vault-heading">Obsidian vault</h2>
+        <div className="toolbar">
+          <Button type="button" variant="outline" size="sm" disabled={!!pending} onClick={() => sync('Exporting')}>{pending === 'Exporting' ? 'Exporting…' : 'Export to vault'}</Button>
+          <Button type="button" variant="outline" size="sm" disabled={!!pending} onClick={() => sync('Importing')}>{pending === 'Importing' ? 'Importing…' : 'Import vault edits'}</Button>
+        </div>
       </div>
+      <p className="muted">Export includes notes, employer evidence and submitted materials. Import brings your vault edits into Pluto.</p>
       <SyncReport result={result} />
     </section>
   </div>

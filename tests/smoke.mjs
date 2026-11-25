@@ -13,8 +13,8 @@ try{
   let page=await app.firstWindow();
   const faults=[];
   page.on('pageerror',e=>faults.push(e.message));
-  await page.getByRole('heading',{name:'Your application desk.'}).waitFor();
-  assert.equal(await page.locator('.hero img').evaluate(img=>img.complete&&img.naturalWidth>0),true);
+  await page.getByRole('heading',{name:'Today', exact:true}).waitFor();
+  assert.equal(await page.locator('.brand img').evaluate(img=>img.complete&&img.naturalWidth>0),true);
   if(process.env.PLUTO_SCREENSHOT)await page.screenshot({path:process.env.PLUTO_SCREENSHOT});
   const nav=page.getByRole('navigation');
   await page.getByRole('button',{name:'Start with your résumé'}).click();
@@ -25,7 +25,7 @@ try{
   }
   const slider=page.getByRole('slider',{name:'Adjust jobs per day'});
   await slider.focus();await slider.press('Home');for(let i=0;i<25;i++)await slider.press('ArrowRight');
-  assert.equal(await slider.inputValue(),'25');
+  assert.equal(await slider.getAttribute('aria-valuenow'),'25');
   await page.getByRole('button',{name:/save budget|save daily|save target/i}).click();
   await page.waitForFunction(async()=>(await window.pluto.call('workspace.snapshot')).profile?.budget?.jobsPerDay===25);
   const proof=await page.evaluate(async()=>{
@@ -43,7 +43,8 @@ try{
   await app.close();app=null;
   app=await electron.launch({args,...(executablePath?{executablePath}:{}),timeout:45000});
   page=await app.firstWindow();
-  await page.getByRole('heading',{name:'Welcome back, Sample.'}).waitFor();
+  await page.getByRole('heading',{name:'Today',exact:true}).waitFor();
+  await page.getByRole('tab',{name:/Submitted/}).click();
   await page.getByRole('button',{name:/Product Analyst/}).waitFor();
   const saved=await page.evaluate(()=>window.pluto.call('workspace.snapshot'));
   assert.equal(saved.profile.budget.jobsPerDay,25);

@@ -1,0 +1,75 @@
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@source "./";
+
+@theme inline {
+  --font-sans: "IBM Plex Sans Variable", "Segoe UI", sans-serif;
+  --color-background: #fff;
+  --color-foreground: #161616;
+  --color-primary: #161616;
+  --color-primary-foreground: #fff;
+  --color-secondary: #e0e0e0;
+  --color-secondary-foreground: #161616;
+  --color-muted: #f4f4f4;
+  --color-muted-foreground: #525252;
+  --color-accent: #e8e8e8;
+  --color-accent-foreground: #161616;
+  --color-input: #8d8d8d;
+  --color-ring: #0f62fe;
+  --color-border: #e0e0e0;
+  --color-destructive: #b81920;
+  --radius-md: 0;
+  --radius-lg: 0;
+}
+
+/* Slot selectors give the installed components their desktop treatment alongside
+   existing native forms. Tailwind preflight is deliberately scoped out. */
+[data-slot="button"], [data-slot="tabs-trigger"] {
+  border-radius: 0;
+  font-weight: 500;
+  box-shadow: none;
+}
+[data-slot="button"][data-variant="default"] {
+  background: #161616;
+  color: #fff;
+  border: 1px solid #161616;
+}
+[data-slot="button"][data-variant="default"]:hover { background: #393939; }
+[data-slot="button"][data-variant="outline"] {
+  color: #161616;
+  background: #fff;
+  border: 1px solid #8d8d8d;
+}
+[data-slot="button"][data-variant="outline"]:hover { background: #f4f4f4; }
+[data-slot="button"][data-variant="ghost"] {
+  background: transparent;
+  color: #393939;
+  border: 1px solid transparent;
+}
+[data-slot="button"][data-variant="ghost"]:hover { background: #e8e8e8; }
+input[data-slot="input"]:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+textarea[data-slot="textarea"] {
+  background: #f4f4f4;
+  border: 0;
+  border-bottom: 1px solid #8d8d8d;
+  border-radius: 0;
+  box-shadow: none;
+  color: #161616;
+}
+[data-slot="tabs-list"] { border-radius: 0; padding: 0; gap: 0; background: #f4f4f4; }
+[data-slot="tabs-trigger"] { border: 0; border-bottom: 2px solid transparent; background: transparent; }
+[data-slot="tabs-trigger"][data-state="active"] { border-bottom-color: #0f62fe; background: #fff; color: #161616; box-shadow: none; }
+[data-slot="slider"] { min-height: 24px; cursor: pointer; }
+[data-slot="slider-track"] { background: #e0e0e0; border-radius: 0; }
+[data-slot="slider-range"], [data-slot="progress-indicator"] { background: #0f62fe; }
+[data-slot="slider-thumb"] { background: #161616; border: 0; box-shadow: none; }
+[data-slot="progress"] { background: #e0e0e0; border-radius: 0; }
+[data-slot="separator"] { background: #e0e0e0; }
+[data-slot="table-head"] { background: #f4f4f4; color: #161616; font-weight: 600; }
+[data-slot="button"]:focus-visible, [data-slot="input"]:focus-visible, [data-slot="textarea"]:focus-visible,
+[data-slot="tabs-trigger"]:focus-visible, [data-slot="slider-thumb"]:focus-visible {
+  outline: 2px solid #0f62fe;
+  outline-offset: 2px;
+  box-shadow: none;
+}

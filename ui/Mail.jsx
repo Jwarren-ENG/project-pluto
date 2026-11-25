@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { Button } from './components/ui/button'
+import { Input } from './components/ui/input'
 
 const labels = { gmail: 'Gmail', outlook: 'Outlook' }
 const call = (action, payload = {}) => window.pluto.call(action, payload)
@@ -133,12 +135,12 @@ export default function Mail({ state, notify, refresh }) {
         </select>
       </label>
       {!loaded && !error && <p role="status">Loading accounts…</p>}
-      {!loaded && error && <button type="button" onClick={() => run('load', loadAccounts)}>Retry</button>}
+      {!loaded && error && <Button type="button" onClick={() => run('load', loadAccounts)}>Retry</Button>}
       {loaded && (account?.email || account?.error ? <>
         {account.error ? <p role="alert">{account.error}</p> : <p>Connected as <strong>{account.email}</strong>.</p>}
-        <button type="button" disabled={!!running} onClick={() => run('disconnect', async () => {
+        <Button type="button" variant="outline" disabled={!!running} onClick={() => run('disconnect', async () => {
           await call('mail.disconnect', { provider }); clearResults(); await loadAccounts(); notify('Account disconnected from this device.')
-        })}>Disconnect account</button>
+        })}>Disconnect account</Button>
       </> : <form onSubmit={connect}>
         <fieldset disabled={!!running}>
           <legend>Connect {labels[provider]}</legend>
@@ -147,12 +149,12 @@ export default function Mail({ state, notify, refresh }) {
             {provider === 'gmail' ? <p>In Google Cloud, enable the Gmail API, configure the consent screen, and create a Desktop app OAuth client. If the app is in testing, add your account as a test user. Copy the client ID and any issued client secret below.</p> :
               <p>In Microsoft Entra, register a public client for organizational and personal accounts. Under Mobile and desktop applications add <code>http://localhost/pluto/outlook</code>. Add delegated Microsoft Graph permissions for User.Read and Mail.Read.</p>}
           </details>
-          <label>Desktop client ID<input required value={clientId} autoComplete="off" spellCheck={false} onChange={e => setClientId(e.target.value)} /></label>
-          {provider === 'gmail' && <label>Desktop client secret, if issued<input type="password" autoComplete="off" value={clientSecret} onChange={e => setClientSecret(e.target.value)} /></label>}
-          <button>Connect {labels[provider]}</button>
+          <label>Desktop client ID<Input required value={clientId} autoComplete="off" spellCheck={false} onChange={e => setClientId(e.target.value)} /></label>
+          {provider === 'gmail' && <label>Desktop client secret, if issued<Input type="password" autoComplete="off" value={clientSecret} onChange={e => setClientSecret(e.target.value)} /></label>}
+          <Button type="submit">Connect {labels[provider]}</Button>
         </fieldset>
       </form>)}
-      {running === 'connect' && <div role="status"><p>Waiting for sign-in in your browser…</p><button type="button" onClick={cancel}>Cancel sign-in</button></div>}
+      {running === 'connect' && <div role="status"><p>Waiting for sign-in in your browser…</p><Button type="button" variant="ghost" onClick={cancel}>Cancel sign-in</Button></div>}
     </section>
     {account?.email && <section className="panel" aria-label="Search inbox">
       <form onSubmit={search}>
@@ -163,15 +165,15 @@ export default function Mail({ state, notify, refresh }) {
             {jobs.map(item => <option key={item.id} value={item.id}>{item.company} · {item.title}</option>)}
           </select></label>
           <p>{jobs.length ? 'Search up to 15 inbox messages using the selected employer’s name.' : 'Save a job in your workspace to search for its employer.'}</p>
-          <button disabled={!job}>Search inbox</button>
+          <Button type="submit" disabled={!job}>Search inbox</Button>
         </fieldset>
       </form>
-      {running === 'scan' && <div role="status"><p>Searching the inbox…</p><button type="button" onClick={cancel}>Cancel search</button></div>}
+      {running === 'scan' && <div role="status"><p>Searching the inbox…</p><Button type="button" variant="ghost" onClick={cancel}>Cancel search</Button></div>}
       {currentResults && <div><p role="status">{currentResults.messages.length ? currentResults.messages.length + ' possible matches. Review the sender and subject before linking.' : 'No matching inbox messages found.'}</p>
         <ul>{currentResults.messages.map(message => <li key={message.key}>
-          <button type="button" disabled={!!running} onClick={() => { select(message); setIncludePreview(false); setError('') }}>
+          <Button type="button" variant="ghost" disabled={!!running} onClick={() => { select(message); setIncludePreview(false); setError('') }}>
             {message.subject} · {message.from || 'Unknown sender'}
-          </button>
+          </Button>
         </li>)}</ul>
       </div>}
     </section>}
@@ -180,11 +182,11 @@ export default function Mail({ state, notify, refresh }) {
       <p><strong>{selected.subject}</strong><br />From {selected.from || 'unknown sender'}<br />
         {selected.receivedAt && <time dateTime={selected.receivedAt}>{new Date(selected.receivedAt).toLocaleString()}</time>}</p>
       {selected.preview && <blockquote>{selected.preview}</blockquote>}
-      {selected.url && <button type="button" disabled={!!running} onClick={() => run('open', () => call('app.openExternal', { url: selected.url }))}>Read original message</button>}
+      {selected.url && <Button type="button" variant="outline" disabled={!!running} onClick={() => run('open', () => call('app.openExternal', { url: selected.url }))}>Read original message</Button>}
       <p>Save a note on <strong>{job.company} · {job.title}</strong> with the sender, subject, received time, mailbox and message reference. The job keeps its current stage.</p>
       {selected.preview && <label><input type="checkbox" disabled={!!running} checked={includePreview} onChange={e => setIncludePreview(e.target.checked)} /> Include the displayed excerpt in the note</label>}
-      <button type="button" disabled={!!running} onClick={link}>Link reply to this job</button>
-      <button type="button" disabled={!!running} onClick={() => select(null)}>Cancel review</button>
+      <Button type="button" disabled={!!running} onClick={link}>Link reply to this job</Button>
+      <Button type="button" variant="ghost" disabled={!!running} onClick={() => select(null)}>Cancel review</Button>
     </section>}
     {error && <p role="alert">{error}</p>}
   </section>

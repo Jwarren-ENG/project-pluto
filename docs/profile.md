@@ -4,8 +4,8 @@ Saving a planning budget or search preferences first still opens résumé onboar
 
 Open **Profile**, then choose a PDF, DOCX or TXT résumé or paste the text. Review the text before continuing. An empty source also works for manual entry.
 
-1. **Start with your résumé.** The native picker reads one selected file locally. A scanned or password-protected PDF may need a pasted text copy. You can correct layout and line breaks in the text box.
-2. **Review your facts.** PLUTO suggests contact fields and phrases from the résumé. Each suggested fact includes its source and original wording. Edit, deselect or add facts, and use the paging controls to review longer lists. Deselecting a fact removes it from the confirmed list. To remove it from the saved résumé as well, edit the source text.
+1. **Start with your résumé.** The native picker reads one selected file locally. A scanned or password-protected PDF may need a pasted text copy. Expand **View or edit résumé text** to correct layout and line breaks, or **Paste résumé text** to start with a passage.
+2. **Review your facts.** PLUTO suggests contact fields and phrases from the résumé. Use **View source** to inspect the original wording behind a suggestion. Source quotations stay collapsed until opened. Edit, deselect or add facts, and use the paging controls to review longer lists. Deselecting a fact removes it from the confirmed list. To remove it from the saved résumé as well, edit the source text.
 3. **Set your job preferences.** Existing preferences and explicitly labeled target roles or preferred locations are shown for review. Fill missing preferences or choose **Edit preferences**. Leaving a preference empty keeps it open.
 4. **Confirm your profile.** Inspect the details, selected facts and résumé text, check the confirmation box and save. **Edit profile** opens this workflow again. Canceling edits or leaving before saving discards the draft.
 

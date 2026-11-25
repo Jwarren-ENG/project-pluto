@@ -1,8 +1,8 @@
 # Budget planner
 
-Set a daily job target with the slider or type an exact number. Enter low and high estimates for input and output tokens across all calls for one role. Input includes the prompt, profile and job details. Output includes tokens billed for the response. Include retries in the estimates if they are part of your usual workflow.
+Set a daily job target with the slider or type an exact number. The live readout below the slider shows estimated daily cost, or estimated daily tokens for a subscription. It updates during dragging and keyboard adjustments. Open **Token and pricing assumptions** to edit the inputs or open the selected model’s published pricing in your browser. Enter low and high estimates for input and output tokens across all calls for one role. Input includes the prompt, profile and job details. Output includes tokens billed for the response. Include retries in the estimates if they are part of your usual workflow.
 
-The planner shows USD per day and across 30 days at the same target. Editing changes the projection immediately. **Save budget assumptions** stores the current settings on this device. The planner operates independently of discovery schedules and provider connections.
+The planner shows USD per day and across 30 days at the same target. Editing changes the projection immediately. **Save budget assumptions** stores the current settings on this device. Overview uses the saved job target to show receipt progress. The planner operates independently of discovery schedules and provider connections.
 
 ## Pricing scenarios
 

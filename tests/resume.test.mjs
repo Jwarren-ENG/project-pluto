@@ -106,7 +106,7 @@ test('source attribution, explicit preferences, excerpt opt-in, and conflict-saf
   const { createServer } = await import('vite')
   const { fileURLToPath } = await import('node:url')
   const server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)),
-    configFile: false, envDir: false, server: { middlewareMode: true, hmr: false }, appType: 'custom',
+    envDir: false, server: { middlewareMode: true, hmr: false }, appType: 'custom',
     optimizeDeps: { noDiscovery: true, include: [] } })
   t.after(() => server.close())
   const { suggest, reviewedChanges, hasProfile } = await server.ssrLoadModule('/ui/Profile.jsx')

@@ -28,3 +28,11 @@ Edit case annotations below the record marker. Import brings those annotations a
 Both vault methods return written, imported and unchanged counts and two arrays, preserved and conflicts. Display each affected path and reason. Export leaves a one-sided vault edit in place for import. If both copies changed since the last sync, keep the desired text from both, make the copies agree and sync again. Duplicate IDs, missing linked jobs and edits to the generated case section include a specific reason. Missing pages stay missing on export. Other Markdown files and symlinks are left alone.
 
 Run `node --test tests/workspace.test.mjs` to exercise persistence, receipt protection, rollback, optimistic concurrency and the vault round trip.
+
+## Panel integration
+
+Applications and Notebook are default exports. Both accept the shared state, refresh and notify props. Applications uses seed and setSeed for the selected or discovered role. Close clears the seed. The editor sends its original updatedAt on every update. If another window saves first, it keeps the local text visible and offers to load the newer copy.
+
+The employer and PDF buttons call application.open and application.pdf with the saved job ID. Save changes to the relevant URL or reviewed résumé before using its button. Draft with AI sends the reviewed profile fields and role details only on a click. A generated replacement is shown beside the current draft for review.
+
+Notebook saves local Markdown and an optional job link. Its import and export buttons use the directory picker provided by main. It displays counts, preserved paths and individual conflicts from the workspace service. Both panels fit the existing preload actions.

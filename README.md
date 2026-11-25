@@ -6,8 +6,8 @@ A local desktop workspace for finding roles, preparing applications, keeping sub
 
 ## Start your search
 
-1. Open **Overview** and choose **Start with your résumé**. Import a file or paste your experience. Review the extracted facts and confirm the details you want saved. You can add work examples, location preferences and a selected excerpt from a previous chat. [Profile guide](docs/profile.md)
-2. In **Daily budget**, move the jobs per day slider. Choose your model and check the input and output rates. The estimate updates as you move the slider. Save your target to track the day's progress on Overview. Each estimate depends on the amount of research, writing and tool use per application.
+1. Open **Today** and choose **Start with your résumé**. Import a file or paste your experience. Review the extracted facts and confirm the details you want saved. You can add work examples, location preferences and a selected excerpt from a previous chat. [Profile guide](docs/profile.md)
+2. In **Daily budget**, move the jobs per day slider. Choose your model and check the input and output rates. The estimate updates as you move the slider. Save your target to track the day's progress on Today. [Budget guide](docs/budget.md). Each estimate depends on the amount of research, writing and tool use per application.
 3. Go to **Applications** to save a job from its employer's posting. For an assisted search, configure Firecrawl in **Connections** and enter a role and location under **Discover**. The daily discovery option runs while the app is open.
 4. Open a saved role to prepare your materials. With a provider connected, you can request a draft based on confirmed experience, edit it and save your reviewed résumé as a PDF. Open the employer's application, fill in the form and submit on the employer's site. Right click inside the form or press Command Shift F on Mac or Control Shift F on Windows to fill supported contact fields.
 5. Record the employer confirmation and change the stage to **Applied**. The application retains a copy of the résumé text, draft and evidence saved at that moment. For an interview, add the invitation and appointment time.

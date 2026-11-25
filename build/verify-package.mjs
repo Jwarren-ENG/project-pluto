@@ -1,7 +1,7 @@
 // Launch the built executable, exercise its ordinary renderer IPC, and import a
 // synthetic PDF. Run on the same OS and CPU as the package under test.
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, writeFile, access } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile, access, realpath } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { _electron as electron } from 'playwright'
@@ -45,7 +45,7 @@ try {
   }))
   assert.equal(identity.packaged, true)
   assert.match(identity.archive, /app\.asar$/)
-  assert.equal(path.resolve(identity.profile), path.resolve(userData))
+  assert.equal(await realpath(identity.profile), await realpath(userData))
   assert.equal(identity.arch, process.arch)
   const window = await application.firstWindow({ timeout: 30000 })
   window.on('pageerror', error => console.error('Renderer error:', error.message))

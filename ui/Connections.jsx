@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react'
 
+import { Button } from './components/ui/button.jsx'
+import { Input } from './components/ui/input.jsx'
+
 const call = (action, payload = {}) => window.pluto.call('providers.' + action, payload)
 
 function AIConnection({ settings, onSettings, notify }) {
@@ -59,29 +62,29 @@ function AIConnection({ settings, onSettings, notify }) {
                 <option key={provider} value={provider}>{entry.label}</option>)}
           </select>
           {(custom || local) && <label>{local ? 'Local Ollama server' : 'HTTPS API base URL'}
-            <input type="url" required value={endpoint} onChange={event => setEndpoint(event.target.value)} placeholder={local ? 'http://127.0.0.1:11434' : 'https://api.example.com/v1'} />
+            <Input type="url" required value={endpoint} onChange={event => setEndpoint(event.target.value)} placeholder={local ? 'http://127.0.0.1:11434' : 'https://api.example.com/v1'} />
           </label>}
           <label>{local ? 'Installed model name' : 'Model ID'}
-            <input required value={model} maxLength={256} onChange={event => setModel(event.target.value)} placeholder={local ? 'qwen2.5:7b' : 'Model ID from your provider'} />
+            <Input required value={model} maxLength={256} onChange={event => setModel(event.target.value)} placeholder={local ? 'qwen2.5:7b' : 'Model ID from your provider'} />
           </label>
           {!local && <label>API key
-            <input type="password" autoComplete="off" spellCheck={false} value={key}
+            <Input type="password" autoComplete="off" spellCheck={false} value={key}
               required={!saved.configured || endpoint !== saved.endpoint}
               placeholder={saved.configured && endpoint === saved.endpoint ? 'Saved key · enter a new key to replace it' : 'Enter your provider key'}
               onChange={event => setKey(event.target.value)} />
           </label>}
           {custom && <p>Enter a key issued for this address. Pluto asks for a new key when the server address changes.</p>}
           {local && <p>Start Ollama and enter a model you have already installed.</p>}
-          <button type="submit">{busy === 'save' ? 'Saving…' : active ? 'Save connection' : 'Use for drafts'}</button>
-          {id === 'openrouter' && settings.openRouterSignIn && <button type="button" disabled={!model.trim()} onClick={() => perform('oauth')}>Sign in with OpenRouter</button>}
+          <Button type="submit">{busy === 'save' ? 'Saving…' : active ? 'Save connection' : 'Use for drafts'}</Button>
+          {id === 'openrouter' && settings.openRouterSignIn && <Button variant="outline" type="button" disabled={!model.trim()} onClick={() => perform('oauth')}>Sign in with OpenRouter</Button>}
           {saved.configured && <>
-            <button type="button" disabled={changed} onClick={() => perform('test')}>{busy === 'test' ? 'Testing…' : 'Test model'}</button>
-            <button type="button" onClick={() => perform('disconnect')}>Disconnect {saved.label}</button>
+            <Button variant="outline" type="button" disabled={changed} onClick={() => perform('test')}>{busy === 'test' ? 'Testing…' : 'Test model'}</Button>
+            <Button variant="outline" type="button" onClick={() => perform('disconnect')}>Disconnect {saved.label}</Button>
           </>}
         </fieldset>
         {busy === 'oauth' && <div>
           <p role="status">Finish sign-in in your browser. This request expires in three minutes.</p>
-          <button type="button" onClick={() => call('configure', { provider: 'openrouter', auth: 'cancel' }).catch(err => notify(err.message))}>Cancel sign-in</button>
+          <Button variant="outline" type="button" onClick={() => call('configure', { provider: 'openrouter', auth: 'cancel' }).catch(err => notify(err.message))}>Cancel sign-in</Button>
         </div>}
       </form>
       {saved.configured && !local && <p>The model test sends a short sample and may use provider credits.</p>}
@@ -113,14 +116,14 @@ function FirecrawlConnection({ saved, onSettings, notify }) {
         <fieldset disabled={Boolean(busy)}>
           <legend>Firecrawl connection</legend>
           <label>Firecrawl API key
-            <input type="password" autoComplete="off" spellCheck={false} value={key} required
+            <Input type="password" autoComplete="off" spellCheck={false} value={key} required
               placeholder={saved.configured ? 'Enter a replacement key' : 'Enter your Firecrawl key'}
               onChange={event => setKey(event.target.value)} />
           </label>
-          <button type="submit">{busy === 'configure' ? 'Saving…' : saved.configured ? 'Replace key' : 'Connect Firecrawl'}</button>
+          <Button type="submit">{busy === 'configure' ? 'Saving…' : saved.configured ? 'Replace key' : 'Connect Firecrawl'}</Button>
           {saved.configured && <>
-            <button type="button" disabled={Boolean(key)} onClick={() => perform('test')}>{busy === 'test' ? 'Testing…' : 'Test connection'}</button>
-            <button type="button" onClick={() => perform('disconnect')}>Disconnect Firecrawl</button>
+            <Button variant="outline" type="button" disabled={Boolean(key)} onClick={() => perform('test')}>{busy === 'test' ? 'Testing…' : 'Test connection'}</Button>
+            <Button variant="outline" type="button" onClick={() => perform('disconnect')}>Disconnect Firecrawl</Button>
           </>}
         </fieldset>
       </form>
@@ -138,7 +141,7 @@ export default function Connections({ notify }) {
     call('settings').then(value => { if (current) setSettings(value) }).catch(err => { if (current) setError(err.message) })
     return () => { current = false }
   }, [attempt])
-  if (error) return <section className="panel"><p role="alert">{error}</p><button onClick={() => setAttempt(attempt + 1)}>Retry connections</button></section>
+  if (error) return <section className="panel"><p role="alert">{error}</p><Button variant="outline" onClick={() => setAttempt(attempt + 1)}>Retry connections</Button></section>
   if (!settings) return <p role="status">Loading connections…</p>
   return <div className="section">
     <AIConnection settings={settings} onSettings={setSettings} notify={notify} />

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import {
-  closeSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync,
+  closeSync, constants, copyFileSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync,
   readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync,
 } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -392,7 +392,8 @@ function parseFile(raw, path) {
   if (result.kind === 'note') {
     const title = /^# ([^\n]+)(?:\n\n|\n|$)/.exec(rest)
     const body = title && rest.slice(title[0].length)
-    if (!title || !title[1].trim() || jobs.length > 1 || (jobs.length && !idPattern.test(jobs[0])) || body.length > maxText) {
+    if (!title || !title[1].trim() || title[1].length > maxText || /[\0\r]/.test(title[1]) ||
+        jobs.length > 1 || (jobs.length && !idPattern.test(jobs[0])) || body.length > maxText || body.includes('\0')) {
       return { ...result, error: 'The note needs a valid heading, relationship and Markdown body.' }
     }
     result.page = { title: title[1].trim(), body, jobId: jobs[0] ?? null }
@@ -401,7 +402,7 @@ function parseFile(raw, path) {
     const at = rest.indexOf(boundary)
     if (at < 0) return { ...result, error: 'The case record marker is missing.' }
     const body = rest.slice(at + boundary.length)
-    if (body.length > maxText) return { ...result, error: 'Case notes exceed the supported size.' }
+    if (body.length > maxText || body.includes('\0')) return { ...result, error: 'Case notes must contain supported Markdown text.' }
     result.page = { generated: rest.slice(0, at), body }
   }
   return result
@@ -435,7 +436,15 @@ function writePage(path, content, expected) {
   try {
     try { writeFileSync(fd, content, 'utf8'); fsyncSync(fd) } finally { closeSync(fd) }
     if (expected === undefined) {
-      try { linkSync(temp, path) } catch (err) { if (err.code === 'EEXIST') return false; throw err }
+      try {
+        linkSync(temp, path)
+      } catch (err) {
+        if (err.code === 'EEXIST') return false
+        if (!['EPERM', 'EOPNOTSUPP', 'ENOTSUP', 'ENOSYS'].includes(err.code)) throw err
+        // Removable and network volumes can lack hard links. Keep exclusive creation there too.
+        try { copyFileSync(temp, path, constants.COPYFILE_EXCL) }
+        catch (copyError) { if (copyError.code === 'EEXIST') return false; throw copyError }
+      }
     } else {
       const st = lstatSync(path, { throwIfNoEntry: false })
       if (!st?.isFile() || readFileSync(path, 'utf8') !== expected) return false
