@@ -19,9 +19,9 @@ When recording Applied, pass the exact reviewed resumeText and draft that went t
 
 ## Working with Obsidian
 
-Pass the selected vault directory to either vault method. Export creates a PROJECT PLUTO folder under it. It writes a case page for each job and a Markdown page for each note. The profile and connection settings stay in the application. Case pages *do* contain the recorded receipt and submitted materials, so select a vault appropriate for that information.
+Pass the selected vault directory to either vault method. Export creates a Project Pluto folder under it. Vaults created by older versions keep using their existing folder. It writes a case page for each job and a Markdown page for each note. The profile and connection settings stay in the application. Case pages *do* contain the recorded receipt and submitted materials, so select a vault appropriate for that information.
 
-The pluto-type and pluto-id frontmatter fields identify each page. You can rename a page or move it into a subfolder within PROJECT PLUTO. Additional frontmatter such as tags is retained. A note's first heading is its title. The remaining Markdown is its body. An optional pluto-job field links the note to an existing job ID.
+The pluto-type and pluto-id frontmatter fields identify each page. You can rename a page or move it into a subfolder within Project Pluto. Additional frontmatter such as tags is retained. A note's first heading is its title. The remaining Markdown is its body. An optional pluto-job field links the note to an existing job ID.
 
 Edit case annotations below the record marker. Import brings those annotations and edited notes into Pluto. Case stage, receipts and submitted materials come from the workspace. A manual change to the generated part of a case is reported for review. A vault can transfer independent managed notes to another workspace. Linked notes require their job to exist there.
 

@@ -25,21 +25,21 @@ jobs:
             target: mac
             platform: macOS
             extension: dmg
-            executable: release/mac-arm64/PROJECT PLUTO.app/Contents/MacOS/PROJECT PLUTO
+            executable: release/mac-arm64/Project Pluto.app/Contents/MacOS/Project Pluto
           - label: macOS Intel
             runner: macos-15-intel
             arch: x64
             target: mac
             platform: macOS
             extension: dmg
-            executable: release/mac/PROJECT PLUTO.app/Contents/MacOS/PROJECT PLUTO
+            executable: release/mac/Project Pluto.app/Contents/MacOS/Project Pluto
           - label: Windows x64
             runner: windows-2025
             arch: x64
             target: win
             platform: Windows
             extension: exe
-            executable: release/win-unpacked/PROJECT PLUTO.exe
+            executable: release/win-unpacked/Project Pluto.exe
     steps:
       - uses: actions/checkout@v7
         with:
@@ -59,17 +59,26 @@ jobs:
         run: node node_modules/electron/install.js
       - run: npm test
       - run: npm run build
+      - name: Include publisher desktop sign-in registrations
+        env:
+          PLUTO_GOOGLE_DESKTOP_CLIENT_ID: ${{ vars.PLUTO_GOOGLE_DESKTOP_CLIENT_ID }}
+          PLUTO_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.PLUTO_GOOGLE_DESKTOP_CLIENT_SECRET }}
+          PLUTO_OUTLOOK_DESKTOP_CLIENT_ID: ${{ vars.PLUTO_OUTLOOK_DESKTOP_CLIENT_ID }}
+        run: node build/register-oauth.mjs
       - name: Build installer
         run: npm run package:native -- --${{ matrix.target }} --${{ matrix.arch }}
       - name: Native smoke against packaged executable
         env:
           PLUTO_SMOKE_EXECUTABLE: ${{ github.workspace }}/${{ matrix.executable }}
-        run: npm run smoke
+        run: |
+          npm run smoke
+          npm run smoke:sources
+          npm run smoke:interactions
       - name: Verify packaged app and PDF import
         run: npm run verify:package
       - uses: actions/upload-artifact@v7
         with:
-          name: PROJECT-PLUTO-${{ matrix.platform }}-${{ matrix.arch }}
-          path: release/PROJECT-PLUTO-*-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.extension }}
+          name: Project-Pluto-${{ matrix.platform }}-${{ matrix.arch }}
+          path: release/Project-Pluto-*-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.extension }}
           if-no-files-found: error
           compression-level: 0

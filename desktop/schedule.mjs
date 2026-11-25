@@ -12,11 +12,12 @@ export function scheduler({workspace,prefs,search,clock=()=>new Date()}) {
       // Reserve before the network request. Restarting the app cannot bill a second search today.
       workspace.saveSchedule({...s,lastRunDate:day});
       prefs.set('discoveryRun',{at:now.toISOString(),query:s.query,status:'Started'});
-      const results=await search({query:s.query});
-      prefs.set('discoveryResults',{at:now.toISOString(),query:s.query,results});
-      prefs.set('discoveryRun',{at:now.toISOString(),query:s.query,status:'Finished',count:results.length});
+      const found=await search({query:s.query});
+      const {results,sources=[]}=Array.isArray(found)?{results:found}:found;
+      prefs.set('discoveryResults',{at:now.toISOString(),query:s.query,results,sources});
+      prefs.set('discoveryRun',{at:now.toISOString(),query:s.query,status:sources.some(source=>source.error)?'Finished with source errors':'Finished',count:results.length});
     }catch{
-      prefs.set('discoveryRun',{at:now.toISOString(),query:s.query,status:'Failed. Test the Firecrawl connection or run a search manually.'});
+      prefs.set('discoveryRun',{at:now.toISOString(),query:s.query,status:'Failed. Check your sources or run a search manually.'});
     }finally{running=false;}
   };
 }

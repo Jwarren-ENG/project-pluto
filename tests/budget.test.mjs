@@ -84,3 +84,26 @@ test('saving only the budget preserves other profile edits and survives reopenin
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('cumulative days share the daily and monthly endpoints and keep both ends of a cost range', () => {
+  const form = { ...budgetDefaults(), provider: 'custom', jobsPerDay: 4,
+    inputLow: 1000, inputHigh: 2000, outputLow: 500, outputHigh: 1000, toolCostPerRole: 0.25 }
+  form.rates.custom = { input: 2, output: 6 }
+  const { day, month, days } = estimateBudget(form)
+  assert.equal(days.length, 31)
+  assert.deepEqual(days[1], day)
+  assert.deepEqual(days[30], month)
+  assert.deepEqual(days[0], { jobs: 0, tokens: [0, 0], modelFees: [0, 0], tools: 0, subscription: null, total: [0, 0] })
+  assert.deepEqual(days[15], { jobs: 60, tokens: [90000, 180000], modelFees: [0.3, 0.6], tools: 15, subscription: null, total: [15.3, 15.6] })
+})
+
+test('selected-day estimates use local tool fees and preserve subscription fee and workload semantics', () => {
+  const form = { ...budgetDefaults(), provider: 'ollama', jobsPerDay: 3, toolCostPerRole: 0.25 }
+  assert.deepEqual(estimateBudget(form).days[4].total, [3, 3])
+  form.provider = 'subscription'
+  assert.equal(estimateBudget(form).days[4].total, null)
+  assert.deepEqual(estimateBudget(form).days[4].tokens, [27600, 81600])
+  form.monthlySubscription = 30
+  form.jobsPerDay = 0
+  assert.deepEqual(estimateBudget(form).days[4], { jobs: 0, tokens: [0, 0], modelFees: null, tools: 0, subscription: 4, total: [4, 4] })
+})

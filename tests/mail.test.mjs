@@ -214,3 +214,17 @@ test('review saves one stable note on the chosen job in the actual workspace', a
   await assert.rejects(linkReviewedReply({ job: { ...one, title: 'Stale title' }, message }, ws), /tracked job changed/)
   assert.equal(workspace.snapshot().notes.length, 2)
 })
+
+test('publisher registrations open permission directly and stay in the main process', async () => {
+  const f = fixture({registrations:{gmail:google}})
+  const accounts = await f.mail.settings()
+  assert.equal(accounts.find(a => a.provider === 'gmail').direct, true)
+  assert.equal(accounts.find(a => a.provider === 'outlook').direct, false)
+  assert.doesNotMatch(JSON.stringify(accounts), /fixture/)
+  const declined = assert.rejects(f.mail.connect({provider:'gmail'}), /declined/)
+  const auth = await f.opened
+  assert.equal(auth.searchParams.get('client_id'), google.clientId)
+  await callback(auth, {state:auth.searchParams.get('state'), error:'access_denied'})
+  await declined
+  assert.equal(f.store.size, 0)
+})

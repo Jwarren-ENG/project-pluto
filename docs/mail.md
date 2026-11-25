@@ -1,8 +1,18 @@
-# Job email
+# Connect a job inbox
 
-Connect one Gmail and one Outlook account in **Job email**. Choose a tracked job, then select **Search inbox**. Each search looks for the employer’s name in that account’s inbox and returns up to 15 possible matches. Opening the tab only checks local connection status. Searching, opening a message, and linking it are separate actions.
+Open **Connections → Email** and choose **Connect Gmail** or **Connect Outlook**. If your copy includes a provider registration, your browser opens Google or Microsoft. Select an account, approve read access, then return to Project Pluto. The connected address appears beside the provider.
 
-Select a result to review the sender, subject, received time and available excerpt. **Read original message** opens the provider’s website in your system browser. Verify the company and position, especially when the same company has multiple openings. **Link reply to this job** saves a local note attached to the selected job. It records the mailbox, sender, subject, date, and original message reference. Include the excerpt only if you want it in the workspace and future Markdown exports. Repeating the link preserves the existing note and any edits. The job’s stage, receipt and submitted résumé are preserved.
+On a Mac without a provider registration, the same button opens the Apple Mail account picker. Allow macOS to show your Mail accounts, then choose the address you use for applications. Project Pluto will show that address **via Apple Mail** and check the selected account for recruiting replies. If the address is missing, add it using **Mail → Add Account** in Apple's Mail app and choose **Check again**. The separate **Connect Apple Mail** option uses the combined inbox.
+
+On Windows, a distribution without a provider registration asks for a desktop client ID from its administrator. The sections below explain how to configure one for everyone who installs the app. Email permission is independent of the AI subscription used for drafting.
+
+**Job mail** shows recruiting messages matched against jobs you track. Open the tab, choose a connected mailbox, and check your tracked jobs. Review a match before linking it to an application. Linking saves a local note and preserves the job’s current stage and receipt.
+
+## Set up one click sign-in for a distribution
+
+A publisher can configure the desktop clients once so end users only need to grant permission. Use a Google **Desktop app** client and a Microsoft **public desktop** client registered for Pluto. Set the repository variables `PLUTO_GOOGLE_DESKTOP_CLIENT_ID` and `PLUTO_OUTLOOK_DESKTOP_CLIENT_ID`. When Google issues a desktop client secret, set the Actions secret `PLUTO_GOOGLE_DESKTOP_CLIENT_SECRET`. The desktop build includes only those native registrations. Everything shipped in a public desktop application is recoverable by its users, so use only credentials intended for installed apps. Complete the providers’ consent verification or tenant approval before broad distribution. Google Drive can use the same registered client and asks separately for its own permission.
+
+For a local distribution, supply the same settings to `node build/register-oauth.mjs` before packaging. User tokens stay in the system protected local store.
 
 ## Bring your own registration
 
@@ -29,21 +39,6 @@ Select a result to review the sender, subject, received time and available excer
 Both providers use a system browser, a single use OAuth state, and S256 PKCE. Each attempt opens a fresh port bound to IPv4 loopback, checks the callback host and path, and closes on completion, denial, cancellation, launch failure or timeout. Cancel sign-in from Pluto if you close the provider tab. Sign-in expires after three minutes; inbox search expires after 45 seconds.
 
 Refresh credentials, account metadata and any Google desktop client secret share one encrypted record per provider in the main process secret store. Access tokens stay in memory. Scan results stay in the open panel until you change the job, switch accounts, leave the panel, or search again. Pluto requests message summaries and does not retrieve attachments or send, mark, move, or delete messages. Disconnecting removes the saved local connection. To revoke the grant at the provider too, use your Google or Microsoft account’s app permissions page. A revoked grant requires reconnecting.
-
-## Desktop and panel integration
-
-The four existing mail actions take a single object. The default Mail panel takes `{state, refresh, notify}`.
-
-| Action | Payload | Result |
-| --- | --- | --- |
-| `mail.settings` | `{}` | Array of `{provider, email, busy, error?}` for both providers. An empty email means no usable connection. |
-| `mail.connect` | `{provider, clientId, clientSecret?}` | Connected `{provider, email}` after verifying identity and saving the grant. |
-| `mail.scan` | `{provider, company}` | Array of `{key, provider, account, from, subject, receivedAt, preview, url}`. Empty excerpt or link means the provider supplied none that Pluto could display. |
-| `mail.disconnect` | `{provider}` | Clears local credentials and returns `{provider, email: ''}`. |
-
-Provider values are `gmail` and `outlook`. Sending `{provider, cancel: true}` to the same connect or scan action cancels the pending operation and waits for cleanup. Other simultaneous actions on the same account are rejected. The main process may call `mail.close()` during shutdown to abort outstanding requests and release listeners. This is a lifecycle method only.
-
-The review step uses existing `workspace.snapshot` and `workspace.saveNote` actions with a stable note ID and selected job ID. It does not require a database migration, new IPC action or package dependency.
 
 ## Fixture verification
 

@@ -1,4 +1,4 @@
-# PROJECT PLUTO
+# Project Pluto
 
 Electron desktop, bundled React UI, private local workspace. macOS and Windows use the same application code. The renderer calls a fixed action through a sandboxed preload. The main process validates the sender and dispatches. Remote employer pages live in a separate, isolated window with no preload.
 

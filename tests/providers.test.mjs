@@ -225,3 +225,71 @@ test('canceling a replacement sign-in preserves the current connection and never
   assert.ok(JSON.stringify([...vault]).includes('existing-test-key'))
   assert.equal(calls.length, 0)
 })
+
+test('subscription drafts use the signed-in CLI, expose only selected fields, and never request an API key', async () => {
+  let state = 'chatgpt'
+  const prompts = []
+  const codex = {
+    status: async () => ({ state, email: 'omit-this-account-detail' }),
+    login: () => assert.fail('an existing ChatGPT session can be reused'),
+    draft: async (instructions, prompt) => { prompts.push([instructions, JSON.parse(prompt)]); return 'Draft via Codex.' },
+  }
+  const { service, vault, calls, deps } = fixture(undefined, { codex })
+  assert.deepEqual(await service.subscriptionStatus(), { state: 'chatgpt' })
+  assert.equal((await service.configure({ provider: 'codex' })).activeProvider, 'codex')
+  await service.test({ provider: 'codex' })
+  assert.equal(prompts.length, 0)
+  const restored = createProviders(deps)
+  const profile = { ...sample.profile, resumeText: 'deselected', confirmedFacts: [{ text: 'Approved example fact' }] }
+  assert.equal(await restored.draft({ ...sample, profile }), 'Draft via Codex.')
+  assert.ok(prompts[0][1].profile.confirmedFacts.includes('Approved example fact'))
+  assert.doesNotMatch(JSON.stringify(prompts), /private-phone|private-receipt|deselected/)
+  state = 'other'
+  await assert.rejects(restored.draft(sample), /another login method/)
+  assert.equal(prompts.length, 1)
+  assert.equal(calls.length, 0)
+  assert.equal(vault.size, 0)
+  assert.equal((await restored.disconnect({ provider: 'codex' })).activeProvider, null)
+  assert.equal(state, 'other')
+})
+
+test('browser login is explicit, never replaces an API login, and keeps the previous provider on failure', async () => {
+  let state = 'signedOut', logins = 0
+  const codex = {
+    status: async () => ({ state }),
+    login: async () => { logins++; state = 'chatgpt' },
+  }
+  const { service } = fixture(undefined, { codex })
+  await service.configure({ provider: 'openai', apiKey: 'fictional' })
+  await assert.rejects(service.configure({ provider: 'codex' }), /Sign in with ChatGPT/)
+  assert.equal(logins, 0)
+  for (const current of ['missing', 'unsupported', 'other']) {
+    state = current
+    await assert.rejects(service.configure({ provider: 'codex', auth: 'login' }))
+    assert.equal(logins, 0)
+    assert.equal(service.settings().activeProvider, 'openai')
+  }
+  state = 'signedOut'
+  for (const options of [{ apiKey: 'fictional' }, { model: '--unsafe' }, { endpoint: 'https://example.org' }]) {
+    await assert.rejects(service.configure({ provider: 'codex', ...options }))
+  }
+  assert.equal((await service.configure({ provider: 'codex', auth: 'login' })).activeProvider, 'codex')
+  assert.equal(logins, 1)
+})
+
+test('canceling a pending ChatGPT login cannot activate the subscription later', async () => {
+  let started, finish, state = 'signedOut'
+  const waiting = new Promise(resolve => { started = resolve })
+  const codex = {
+    status: async () => ({ state }),
+    login: async () => { started(); await new Promise(resolve => { finish = resolve }); state = 'chatgpt' },
+  }
+  const { service } = fixture(undefined, { codex })
+  const attempt = service.configure({ provider: 'codex', auth: 'login' })
+  await waiting
+  await service.configure({ provider: 'openrouter', auth: 'cancel' })
+  await service.configure({ provider: 'codex', auth: 'cancel' })
+  finish()
+  await assert.rejects(attempt, /canceled/)
+  assert.equal(service.settings().activeProvider, null)
+})

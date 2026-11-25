@@ -19,3 +19,14 @@ test('only HTTPS destinations without embedded credentials open externally',()=>
   assert.equal(webUrl('https://example.org/job'),'https://example.org/job');
   for(const target of ['file:///tmp/example','https://name:password@example.org','javascript:alert(1)','http://example.org'])assert.throws(()=>webUrl(target));
 });
+
+test('scheduled discovery records partial source results and their errors together', async () => {
+  const sources = [{label:'Job list',count:1,status:'ok'}, {label:'Careers',count:0,status:'error',error:'Site unavailable'}];
+  const results = [{title:'Product Analyst',url:'https://example.org/jobs/42',source:'Job list'}];
+  const runner = example(async()=>({results,sources}));
+  runner.at(new Date(2026,1,2,12));
+  await runner.tick();
+  assert.deepEqual(runner.log.get('discoveryResults').sources,sources);
+  assert.deepEqual(runner.log.get('discoveryResults').results,results);
+  assert.match(runner.log.get('discoveryRun').status,/source errors/);
+})

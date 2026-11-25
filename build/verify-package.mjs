@@ -8,11 +8,11 @@ import { _electron as electron } from 'playwright'
 
 const platform = process.platform
 assert.ok(['darwin', 'win32'].includes(platform), 'Run this check on a macOS or Windows build host.')
-const appName = 'PROJECT PLUTO'
+const appName = 'Project Pluto'
 const binary = platform === 'darwin'
   ? path.join(process.arch === 'arm64' ? 'mac-arm64' : 'mac', appName + '.app', 'Contents', 'MacOS', appName)
   : path.join('win-unpacked', appName + '.exe')
-const executablePath = path.resolve('release', binary)
+const executablePath = process.env.PLUTO_SMOKE_EXECUTABLE || path.resolve('release', binary)
 await access(executablePath)
 
 function pdfFixture() {
@@ -40,16 +40,24 @@ try {
   application = await electron.launch({ executablePath, args: ['--user-data-dir=' + userData], timeout: 45000 })
   application.on('console', msg => { if (msg.type() === 'error') console.error(msg.text()) })
   console.log('Started packaged executable.')
-  const identity = await application.evaluate(({ app }) => ({
-    packaged: app.isPackaged, archive: app.getAppPath(), profile: app.getPath('userData'), arch: process.arch,
+  const identity = await application.evaluate(({ app, Menu }) => ({
+    menuName: Menu.getApplicationMenu()?.items[0]?.label, name: app.getName(), packaged: app.isPackaged, archive: app.getAppPath(), profile: app.getPath('userData'), arch: process.arch,
   }))
+  assert.equal(identity.name, appName)
+  if (platform === 'darwin') assert.equal(identity.menuName, appName)
   assert.equal(identity.packaged, true)
   assert.match(identity.archive, /app\.asar$/)
   assert.equal(await realpath(identity.profile), await realpath(userData))
   assert.equal(identity.arch, process.arch)
+  const locked = await application.evaluate(({app}) => {
+    const require = process.getBuiltinModule('module').createRequire(app.getAppPath() + '/package.json')
+    return require('./desktop/omniroute-runtime/dependency-lock.json').packages['node_modules/omniroute']?.integrity
+  })
+  assert.match(locked, /^sha512-/)
   const window = await application.firstWindow({ timeout: 30000 })
   window.on('pageerror', error => console.error('Renderer error:', error.message))
   await window.waitForFunction(() => Boolean(document.querySelector('#root')?.firstElementChild), undefined, { timeout: 20000 })
+  assert.equal(await window.title(), appName)
   console.log('Loaded packaged renderer.')
   assert.deepEqual(await window.evaluate(async () => (await window.pluto.call('workspace.snapshot', {})).jobs), [])
 
@@ -69,7 +77,8 @@ try {
   assert.equal(imported.name, 'sample.pdf')
   assert.match(imported.text, /Packaged Pluto PDF fixture/)
   const accounts = await window.evaluate(() => window.pluto.call('mail.settings', {}))
-  assert.ok(accounts.length === 2 && accounts.every(a => !a.email && !a.error))
+  assert.deepEqual(accounts.map(a => a.provider).sort(), (platform === 'darwin' ? ['apple','gmail','outlook'] : ['gmail','outlook']))
+  assert.ok(accounts.every(a => !a.email && !a.error))
   console.log('Verified packaged renderer, native canvas, PDF import and empty workspace on ' + platform + ' ' + identity.arch + '.')
 } finally {
   try { await application?.close() }

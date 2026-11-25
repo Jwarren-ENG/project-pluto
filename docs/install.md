@@ -1,14 +1,14 @@
-# Installing and building PROJECT PLUTO
+# Installing and building Project Pluto
 
 ## Choose an installer
 
 | Computer | Installer filename |
 | --- | --- |
-| Mac with Apple silicon | `PROJECT-PLUTO-<version>-macOS-arm64.dmg` |
-| Mac with an Intel processor | `PROJECT-PLUTO-<version>-macOS-x64.dmg` |
-| Windows x64 | `PROJECT-PLUTO-<version>-Windows-x64.exe` |
+| Mac with Apple silicon | `Project-Pluto-<version>-macOS-arm64.dmg` |
+| Mac with an Intel processor | `Project-Pluto-<version>-macOS-x64.dmg` |
+| Windows x64 | `Project-Pluto-<version>-Windows-x64.exe` |
 
-On a Mac, **About This Mac** identifies the chip or processor. Open the matching disk image, then drag **PROJECT PLUTO** into **Applications**. On Windows, launch the installer and follow the installation wizard. The Windows installer defaults to a per-user installation.
+On a Mac, **About This Mac** identifies the chip or processor. Open the matching disk image, then drag **Project Pluto** into **Applications**. On Windows, launch the installer and follow the installation wizard. The Windows installer defaults to a per-user installation.
 
 The default Mac build uses an ad hoc signature and has no Apple notarization. Default Windows CI builds have no Authenticode publisher certificate. For managed devices, use a release approved by your organization. Signing and release publishing are separate maintainer steps.
 
@@ -44,8 +44,8 @@ The **Desktop builds** workflow in `.github/workflows/desktop-build.yml` runs on
 
 | Actions artifact | Contents |
 | --- | --- |
-| `PROJECT-PLUTO-macOS-arm64` | Apple silicon DMG |
-| `PROJECT-PLUTO-macOS-x64` | Intel DMG |
-| `PROJECT-PLUTO-Windows-x64` | Windows x64 installer |
+| `Project-Pluto-macOS-arm64` | Apple silicon DMG |
+| `Project-Pluto-macOS-x64` | Intel DMG |
+| `Project-Pluto-Windows-x64` | Windows x64 installer |
 
 The workflow has read-only repository permissions and uploads build artifacts to its run. The release maintainer chooses the verified installers for publication. [GitHub native runner specifications](https://docs.github.com/en/actions/reference/runners/github-hosted-runners#standard-runners-for-public-repositories)

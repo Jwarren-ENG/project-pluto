@@ -18,6 +18,7 @@ const groups=[
   [['Daily budget',SlidersHorizontal],['Profile',UserRound],['Connections',Cable]]
 ];
 const panels={Today,Discover,Applications,Notebook,Mail,Profile,Connections,'Daily budget':Budget};
+const viewLabel=view=>view==='Mail'?'Job mail':view;
 
 function DiscardDialog({kind,keep,discard}){
   const dialog=useRef(null);
@@ -43,6 +44,7 @@ function App(){
   const refresh=useCallback(async()=>{const s=await window.pluto.call('workspace.snapshot');setState(s);setLoadError('');return s;},[]);
   useEffect(()=>{refresh().catch(e=>setLoadError(e.message));},[refresh]);
   useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),9000);return ()=>clearTimeout(timer);},[notice]);
+  const [entrySection,setEntrySection]=useState(null);
   const editorStatus=useRef(null);
   const [leave,setLeave]=useState(null);
   const reportEditor=useCallback(status=>{editorStatus.current=status;},[]);
@@ -52,27 +54,28 @@ function App(){
     if(editor?.dirty){setLeave({kind:editor.kind,proceed});return;}
     proceed();
   }
-  const go=destination=>{
+  const go=(destination,section=null)=>{
     if(destination===view && !(view==='Applications' && seed))return;
     requestLeave(()=>{
       if(destination==='Applications')setSeed(null);
+      setEntrySection(section);
       setView(destination);
     });
   };
   const edit=value=>requestLeave(()=>{setSeed(value.id?{id:value.id}:value);setView('Applications');});
-  const props={state,refresh,notify:setNotice,go,edit,seed,setSeed,reportEditor,requestLeave};
+  const props={state,refresh,entrySection,notify:setNotice,go,edit,seed,setSeed,reportEditor,requestLeave};
   const Panel=panels[view];
   const platform=window.pluto?.platform;
   return <div className={'shell platform-'+platform}>
     <aside className="sidebar"><div className="drag-area"/>
       <div className="brand"><img src="./pluto.jpg" alt=""/><strong>Project Pluto</strong></div>
       <nav aria-label="Workspace">{groups.map((group,i)=><React.Fragment key={i}>{i>0&&<Separator/>}{group.map(([label,Icon])=>
-        <Button variant="ghost" key={label} className="nav-item" aria-label={label} aria-current={view===label?'page':undefined} onClick={()=>go(label)}><Icon size={17} strokeWidth={1.6}/><span>{label}</span></Button>
+        <Button variant="ghost" key={label} className="nav-item" aria-label={viewLabel(label)} aria-current={view===label?'page':undefined} onClick={()=>go(label)}><Icon size={17} strokeWidth={1.6}/><span>{viewLabel(label)}</span></Button>
       )}</React.Fragment>)}</nav>
       <div className="local-mark"><span className="local-dot"/> Local workspace</div>
     </aside>
-    <main><div className="window-line"><span>Workspace</span><span aria-hidden="true">/</span><strong>{view}</strong></div>
-      <div className="content" key={view}>{state?<>{view!=='Today'&&<header className="page-heading"><h1>{view}</h1></header>}<Panel {...props}/></>:
+    <main><div className="window-line"><span>Workspace</span><span aria-hidden="true">/</span><strong>{viewLabel(view)}</strong></div>
+      <div className="content" key={view}>{state?<>{view!=='Today'&&<header className="page-heading"><h1>{viewLabel(view)}</h1></header>}<Panel {...props}/></>:
       loadError?<section className="panel"><h1>Workspace unavailable</h1><p role="alert">{loadError}</p><Button onClick={()=>refresh().catch(e=>setLoadError(e.message))}>Try again</Button></section>:<p role="status">Opening your workspace…</p>}</div>
     </main>
     {leave&&<DiscardDialog kind={leave.kind} keep={()=>setLeave(null)} discard={()=>{setLeave(null);leave.proceed();}}/>}

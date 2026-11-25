@@ -3,7 +3,7 @@ import { Button } from './components/ui/button.jsx'
 import { Input } from './components/ui/input.jsx'
 import { Slider } from './components/ui/slider.jsx'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table.jsx'
-import { estimateBudget, limits, loadBudget, normalizeBudget, rateCards } from './budget-estimate.mjs'
+import { estimateBudget, forecastDays, limits, loadBudget, normalizeBudget, rateCards } from './budget-estimate.mjs'
 
 import './budget.css'
 
@@ -27,49 +27,50 @@ function NumberField({ id, label, value, onChange, max, fractional = false, opti
   </label>
 }
 
-function MonthForecast({ month, subscription }) {
-  const canvas = useRef(null)
+function MonthForecast({ month, selected, day, onDayChange, subscription }) {
   const [low, high] = subscription ? month.tokens : month.total
-  const format = subscription ? n => count.format(n) : money
-  useEffect(() => {
-    const el = canvas.current
-    function draw() {
-      const { width, height } = el.getBoundingClientRect()
-      if (!width || !height) return
-      const ratio = window.devicePixelRatio || 1
-      el.width = Math.round(width * ratio)
-      el.height = Math.round(height * ratio)
-      const ctx = el.getContext('2d')
-      ctx.scale(ratio, ratio)
-      const x0 = 1, x1 = width - 4, base = height - 3, top = 5
-      const y = amount => high > 0 ? base - (base - top) * amount / high : base
-      const line = (x, y1, xEnd, yEnd, color, weight) => {
-        ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(xEnd, yEnd)
-        ctx.strokeStyle = color; ctx.lineWidth = weight; ctx.stroke()
-      }
-      for (let i = 0; i <= 2; i++) {
-        const row = base - (base - top) * i / 2
-        line(x0, row, x1, row, '#dce0df', 1)
-      }
-      ctx.beginPath(); ctx.moveTo(x0, base); ctx.lineTo(x1, y(high)); ctx.lineTo(x1, y(low))
-      ctx.closePath(); ctx.fillStyle = '#d9e7fb'; ctx.fill()
-      line(x0, base, x1, y(low), '#6d88a8', 1)
-      line(x0, base, x1, y(high), '#1457a8', 2)
-    }
-    const observer = new ResizeObserver(draw)
-    observer.observe(el)
-    draw()
-    return () => observer.disconnect()
-  }, [low, high])
+  const bounds = subscription ? selected.tokens : selected.total
+  const value = subscription ? range(bounds, n => count.format(n)) + ' tokens' : range(bounds, money)
+  const metric = subscription ? 'Cumulative token usage' : 'Cumulative spend'
+  // Percentage coordinates keep the plotted band and day cursor aligned as the pane resizes.
+  const y = amount => high > 0 ? 95 - 90 * amount / high : 95
+  const cursor = day / forecastDays * 100 + '%'
+
+  function preview(event) {
+    if (event.pointerType !== 'mouse' || event.buttons !== 0) return
+    const { left, width } = event.currentTarget.getBoundingClientRect()
+    if (width) onDayChange(Math.round(Math.max(0, Math.min(1, (event.clientX - left) / width)) * forecastDays))
+  }
+
   return <figure className="budget-month">
-    <figcaption>{subscription ? 'Cumulative token usage' : 'Cumulative spend'}</figcaption>
-    <div className="budget-chart-value">{range([low, high], format)}{subscription && ' tokens'}</div>
-    <canvas ref={canvas} role="img" aria-label={'Cumulative forecast from zero to ' + range([low, high], format) + (subscription ? ' tokens' : ' USD') + ' over 30 days.'} />
-    <div className="budget-axis"><span>Day 0</span><span>Day 15</span><span>Day 30</span></div>
+    <figcaption>{metric}<span>Day {day}</span></figcaption>
+    <div className="budget-chart-value">{value}</div>
+    <div className="budget-plot">
+      <svg aria-hidden="true" focusable="false">
+        <svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="none">
+          <path className="budget-gridlines" d="M0 5H100 M0 50H100 M0 95H100" />
+          <path className="budget-band" d={`M0 95 L100 ${y(high)} L100 ${y(low)} Z`} />
+          <path className="budget-low" d={`M0 95 L100 ${y(low)}`} />
+          <path className="budget-high" d={`M0 95 L100 ${y(high)}`} />
+        </svg>
+        <line className="budget-cursor" x1={cursor} x2={cursor} y1="5%" y2="95%" />
+        {bounds[0] !== bounds[1] && <circle className="budget-dot low" cx={cursor} cy={y(bounds[0]) + '%'} r="3" />}
+        <circle className="budget-dot" cx={cursor} cy={y(bounds[1]) + '%'} r="4" />
+      </svg>
+      <input type="range" aria-label="Forecast day" aria-describedby="budget-plot-help"
+        aria-valuetext={`Day ${day} of ${forecastDays}, ${metric.toLowerCase()}, ${value}`}
+        min="0" max={forecastDays} step="1" value={day} onPointerMove={preview}
+        onChange={event => onDayChange(event.currentTarget.valueAsNumber)} />
+    </div>
+    <div className="budget-axis" aria-hidden="true"><span>Day 0</span><span>Day 15</span><span>Day {forecastDays}</span></div>
+    <p id="budget-plot-help">Point, drag or use the arrow keys to explore.</p>
   </figure>
 }
 
 function Projection({ estimate, subscription }) {
+  const [day, setDay] = useState(forecastDays)
+  if (!estimate) return null
+  const selected = estimate.days[day]
   const rows = [
     ['Jobs', period => count.format(period.jobs)],
     ['Estimated tokens', period => range(period.tokens, n => count.format(n))],
@@ -81,13 +82,13 @@ function Projection({ estimate, subscription }) {
   return <section className="budget-forecast" aria-labelledby="budget-forecast-title">
     <h2 id="budget-forecast-title">30-day forecast</h2>
     <div className="budget-forecast-grid">
-      <Table aria-label="Daily and 30-day forecast in US dollars">
-        <TableHeader><TableRow><TableHead scope="col">Breakdown</TableHead><TableHead scope="col">Per day</TableHead><TableHead scope="col">30 days</TableHead></TableRow></TableHeader>
+      <Table aria-label="Daily and cumulative budget forecast">
+        <TableHeader><TableRow><TableHead scope="col">Breakdown</TableHead><TableHead scope="col">Per day</TableHead><TableHead scope="col">Through day {day}</TableHead></TableRow></TableHeader>
         <TableBody>{rows.map(([label, value]) => <TableRow key={label}>
-          <TableHead scope="row">{label}</TableHead><TableCell>{value(estimate.day)}</TableCell><TableCell>{value(estimate.month)}</TableCell>
+          <TableHead scope="row">{label}</TableHead><TableCell>{value(estimate.day)}</TableCell><TableCell>{value(selected)}</TableCell>
         </TableRow>)}</TableBody>
       </Table>
-      <MonthForecast month={estimate.month} subscription={subscription} />
+      <MonthForecast month={estimate.month} selected={selected} day={day} onDayChange={setDay} subscription={subscription} />
     </div>
   </section>
 }
@@ -99,6 +100,21 @@ export default function Budget({ state, refresh, notify }) {
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const loaded = useRef(initial)
+  const userTouchedBudget = useRef(false)
+
+  useEffect(() => {
+    if (initial != null || userTouchedBudget.current) return
+    let current = true
+    window.pluto.call('providers.settings', {}).then(settings => {
+      if (current && !userTouchedBudget.current && settings?.activeProvider === 'codex') {
+        setForm(previous => ({ ...previous, provider: 'subscription' }))
+      }
+    }).catch(() => {
+      // The planner still works with its standard assumptions when settings are unavailable.
+    })
+    return () => { current = false }
+  }, [initial])
+
   useEffect(() => {
     if (!dirty && loaded.current !== initial) {
       loaded.current = initial
@@ -107,10 +123,12 @@ export default function Budget({ state, refresh, notify }) {
     }
   }, [initial, dirty])
   const setField = (key, value) => {
+    userTouchedBudget.current = true
     setDirty(true)
     setForm(previous => ({ ...previous, [key]: value }))
   }
   function setRate(key, value) {
+    userTouchedBudget.current = true
     setDirty(true)
     setForm(previous => ({ ...previous, rates: { ...previous.rates, [previous.provider]: { ...previous.rates[previous.provider], [key]: value } } }))
   }
@@ -126,6 +144,7 @@ export default function Budget({ state, refresh, notify }) {
   async function save(event) {
     event.preventDefault()
     if (error || saving) return
+    userTouchedBudget.current = true
     setSaving(true)
     try {
       const budget = normalizeBudget(form)
@@ -170,13 +189,17 @@ export default function Budget({ state, refresh, notify }) {
       </div>
       <div className="budget-toolbar">
         <label htmlFor="budget-provider">Pricing scenario</label>
-        <select id="budget-provider" disabled={saving} value={form.provider} onChange={event => setField('provider', event.target.value)}>
-          {Object.entries(rateCards).map(([id, card]) => <option key={id} value={id}>{card.label}</option>)}
+        <select id="budget-provider" aria-describedby="budget-scenario-help" disabled={saving} value={form.provider} onChange={event => setField('provider', event.target.value)}>
+          <option value="openai">OpenAI API · example rates</option>
+          <option value="anthropic">Anthropic API · example rates</option>
+          <option value="openrouter">OpenRouter · editable estimate</option>
+          <option value="custom">Custom API · editable estimate</option>
           <option value="ollama">Local inference · Ollama</option>
           <option value="subscription">Subscription plan</option>
         </select>
         <Button type="submit" disabled={Boolean(error) || saving}>{saving ? 'Saving…' : 'Save budget'}</Button>
       </div>
+      <p id="budget-scenario-help" className="muted">Choose your drafting model in <strong>Connections → AI for drafts</strong>. For an API estimate, enter that model’s published rates below.</p>
       <details>
         <summary>Token and pricing assumptions</summary>
         <fieldset disabled={saving}>
@@ -190,7 +213,7 @@ export default function Budget({ state, refresh, notify }) {
           <legend>Rates and tool charges</legend>
           {card && <>
             {card.source ? <p>
-              Reference rates on {card.verified} were {money(card.input)} for input and {money(card.output)} for output per million tokens.{' '}
+              {card.label} example, dated {card.verified}. Input was {money(card.input)} and output was {money(card.output)} per million tokens.{' '}
               <a href={card.source} onClick={openRateSource} onAuxClick={event => { if (event.button === 1) openRateSource(event) }}>
                 View {card.label} pricing
               </a>
@@ -208,6 +231,6 @@ export default function Budget({ state, refresh, notify }) {
         </fieldset>
       </details>
     </form>
-    {estimate && <Projection estimate={estimate} subscription={isSubscription} />}
+    <Projection estimate={estimate} subscription={isSubscription} />
   </div>
 }

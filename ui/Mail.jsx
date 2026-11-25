@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Button } from './components/ui/button'
-import { Input } from './components/ui/input'
 
-const labels = { gmail: 'Gmail', outlook: 'Outlook' }
+const labels = { apple: 'Apple Mail', gmail: 'Gmail', outlook: 'Outlook' }
 const call = (action, payload = {}) => window.pluto.call(action, payload)
 
 function noteBody(message, includePreview) {
@@ -27,7 +26,7 @@ export async function linkReviewedReply({ job, message, includePreview }, worksp
   const id = await noteId(job.id, message.key)
   const latest = await workspaceCall('workspace.snapshot')
   const target = latest.jobs.find(item => item.id === job.id)
-  if (!target || target.company !== job.company || target.title !== job.title) {
+  if (!target || target.company !== job.company || target.title !== job.title || target.url !== job.url) {
     throw new Error('The tracked job changed. Choose it again and review the match.')
   }
   const existing = latest.notes.some(note => note.id === id ||
@@ -38,156 +37,153 @@ export async function linkReviewedReply({ job, message, includePreview }, worksp
   return true
 }
 
-export default function Mail({ state, notify, refresh }) {
-  const [accounts, setAccounts] = useState([])
-  const [provider, setProvider] = useState('gmail')
-  const [clientId, setClientId] = useState('')
-  const [clientSecret, setClientSecret] = useState('')
+export default function Mail({ state, notify, refresh, go }) {
+  const [accounts, setAccounts] = useState(null)
+  const [provider, setProvider] = useState('')
   const [jobId, setJobId] = useState('')
   const [results, setResults] = useState(null)
   const [selected, select] = useState(null)
   const [includePreview, setIncludePreview] = useState(false)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
-  const [loaded, setLoaded] = useState(false)
-  const mounted = useRef(false)
   const pending = useRef(null)
+  const mounted = useRef(false)
   const jobs = state?.jobs || []
-  const job = jobs.find(item => item.id === jobId)
-  const account = accounts.find(item => item.provider === provider)
-  const clearResults = () => { setResults(null); select(null); setIncludePreview(false) }
+  const matchesJob = (job, row) => job.id === row?.jobId && job.title === row.title && job.company === row.company && job.url === row.jobUrl
+  const target = jobs.find(job => matchesJob(job, selected))
+  const message = target && selected.message
+  const linkedNotes = (state?.notes || []).filter(note => /^mail-[a-f0-9]{64}$/.test(note.id) && jobs.some(job => job.id === note.jobId))
+  const visible = (results?.matches || []).filter(row => jobs.some(job => matchesJob(job, row)))
+  const clear = () => { setResults(null); select(null); setError(''); setIncludePreview(false) }
 
-  async function loadAccounts() {
-    const data = await call('mail.settings')
-    if (mounted.current) { setAccounts(data); setLoaded(true) }
+  async function load() {
+    setError('')
+    try {
+      const entries = await call('mail.settings')
+      if (!mounted.current) return
+      const connected = entries.filter(a => Object.hasOwn(labels, a.provider) && a.email && !a.error)
+      setAccounts(connected)
+      setProvider(value => connected.some(a => a.provider === value) ? value : connected[0]?.provider || '')
+      if (entries.some(a => a.error)) setError('A mail source needs attention in Connections.')
+    } catch {
+      if (mounted.current) setError('Couldn’t load mail sources. Check Connections or try again.')
+    }
   }
+
   useEffect(() => {
     mounted.current = true
-    loadAccounts().catch(err => { if (mounted.current) setError(err.message) })
+    load()
     return () => {
       mounted.current = false
-      const op = pending.current
-      if (op && ['scan', 'connect'].includes(op.kind)) call('mail.' + op.kind, { provider: op.provider, cancel: true }).catch(() => {})
+      const scan = pending.current
+      pending.current = null
+      if (scan) call('mail.scan', { ...scan, cancel: true }).catch(() => {})
     }
   }, [])
 
-  async function run(kind, perform) {
-    if (pending.current) return
-    pending.current = { kind, provider }
-    setBusy(kind)
+  async function search(offset = 0) {
+    if (busy || pending.current || !provider || !jobs.length) return
+    if (!offset) clear()
+    const request = { provider, scanId: crypto.randomUUID() }
+    pending.current = request
+    setBusy('scan')
     setError('')
-    try { await perform() }
-    catch (err) { if (mounted.current) setError(err.message || 'The request could not be completed.') }
-    finally {
-      pending.current = null
-      if (mounted.current) setBusy('')
+    try {
+      const page = await call('mail.scan', { ...request, offset, ...(jobId && { jobId }) })
+      if (pending.current !== request) return
+      setResults(previous => {
+        const byKey = new Map((offset ? previous?.matches || [] : []).map(row => [row.message.key, row]))
+        for (const row of page.matches) byKey.set(row.message.key, row)
+        const matches = [...byKey.values()].sort((a, b) => b.message.receivedAt.localeCompare(a.message.receivedAt))
+        return { ...page, matches }
+      })
+    } catch (err) {
+      if (pending.current === request) setError(err.message || 'Couldn’t check job mail.')
+    } finally {
+      if (pending.current === request) { pending.current = null; setBusy('') }
     }
   }
 
-  function connect(event) {
-    event.preventDefault()
-    run('connect', async () => {
-      const details = { provider, clientId, clientSecret }
-      setClientSecret('')
-      const result = await call('mail.connect', details)
-      if (!mounted.current) return
-      setClientId('')
-      await loadAccounts()
-      notify('Connected ' + result.email + '.')
-    })
-  }
-  function search(event) {
-    event.preventDefault()
-    if (!job || !account?.email) return
-    clearResults()
-    run('scan', async () => {
-      const messages = await call('mail.scan', { provider, company: job.company })
-      if (mounted.current) setResults({ jobId: job.id, company: job.company, email: account.email, messages })
-    })
-  }
-  const currentResults = results && job && results.jobId === job.id &&
-    results.company === job.company && results.email === account?.email ? results : null
-
-  function link() {
-    if (!currentResults || !selected) return
-    run('link', async () => {
-      let created
-      try { created = await linkReviewedReply({ job, message: selected, includePreview }, call) }
-      finally { await refresh() }
-      if (mounted.current) select(null)
-      notify(created ? 'Reply linked to ' + job.title + ' at ' + job.company + '.' : 'This message is already linked to this job.')
-    })
-  }
-  const running = busy || account?.busy
   async function cancel() {
-    try { await call('mail.' + running, { provider, cancel: true }); await loadAccounts() }
-    catch (err) { if (mounted.current) setError(err.message) }
+    const request = pending.current
+    if (!request) return
+    pending.current = null
+    setBusy('cancel')
+    try { await call('mail.scan', { ...request, cancel: true }) }
+    catch { if (mounted.current) setError('Couldn’t confirm cancellation. Try the check again.') }
+    finally { if (mounted.current) setBusy('') }
   }
 
-  return <section className="section" aria-label="Job email">
-    <h2>Job email</h2>
-    <section className="panel" aria-label="Mail connection">
-      <label>Mail provider
-        <select value={provider} disabled={!!running} onChange={event => {
-          setProvider(event.target.value); setClientId(''); setClientSecret(''); setError(''); clearResults()
-        }}>
-          <option value="gmail">Gmail</option><option value="outlook">Outlook</option>
-        </select>
-      </label>
-      {!loaded && !error && <p role="status">Loading accounts…</p>}
-      {!loaded && error && <Button type="button" onClick={() => run('load', loadAccounts)}>Retry</Button>}
-      {loaded && (account?.email || account?.error ? <>
-        {account.error ? <p role="alert">{account.error}</p> : <p>Connected as <strong>{account.email}</strong>.</p>}
-        <Button type="button" variant="outline" disabled={!!running} onClick={() => run('disconnect', async () => {
-          await call('mail.disconnect', { provider }); clearResults(); await loadAccounts(); notify('Account disconnected from this device.')
-        })}>Disconnect account</Button>
-      </> : <form onSubmit={connect}>
-        <fieldset disabled={!!running}>
-          <legend>Connect {labels[provider]}</legend>
-          <p>Use your own desktop app registration. Sign in with your provider in the system browser.</p>
-          <details><summary>Registration instructions</summary>
-            {provider === 'gmail' ? <p>In Google Cloud, enable the Gmail API, configure the consent screen, and create a Desktop app OAuth client. If the app is in testing, add your account as a test user. Copy the client ID and any issued client secret below.</p> :
-              <p>In Microsoft Entra, register a public client for organizational and personal accounts. Under Mobile and desktop applications add <code>http://localhost/pluto/outlook</code>. Add delegated Microsoft Graph permissions for User.Read and Mail.Read.</p>}
-          </details>
-          <label>Desktop client ID<Input required value={clientId} autoComplete="off" spellCheck={false} onChange={e => setClientId(e.target.value)} /></label>
-          {provider === 'gmail' && <label>Desktop client secret, if issued<Input type="password" autoComplete="off" value={clientSecret} onChange={e => setClientSecret(e.target.value)} /></label>}
-          <Button type="submit">Connect {labels[provider]}</Button>
-        </fieldset>
-      </form>)}
-      {running === 'connect' && <div role="status"><p>Waiting for sign-in in your browser…</p><Button type="button" variant="ghost" onClick={cancel}>Cancel sign-in</Button></div>}
-    </section>
-    {account?.email && <section className="panel" aria-label="Search inbox">
-      <form onSubmit={search}>
-        <fieldset disabled={!!running}>
-          <legend>Find an employer reply</legend>
-          <label>Tracked job<select value={jobId} onChange={e => { setJobId(e.target.value); clearResults(); setError('') }}>
-            <option value="">Choose a job</option>
-            {jobs.map(item => <option key={item.id} value={item.id}>{item.company} · {item.title}</option>)}
-          </select></label>
-          <p>{jobs.length ? 'Search up to 15 inbox messages using the selected employer’s name.' : 'Save a job in your workspace to search for its employer.'}</p>
-          <Button type="submit" disabled={!job}>Search inbox</Button>
+  async function link() {
+    if (!target || !message || busy) return
+    setBusy('link')
+    setError('')
+    try {
+      const created = await linkReviewedReply({ job: target, message, includePreview }, call)
+      await refresh()
+      if (mounted.current) {
+        select(null)
+        notify(created ? 'Reply linked to ' + target.title + ' at ' + target.company + '.' : 'This reply is already linked.')
+      }
+    } catch (err) { if (mounted.current) setError(err.message) }
+    finally { if (mounted.current) setBusy('') }
+  }
+
+  return <section className="section" aria-label="Recruiting messages">
+    <p>Check for recruiting messages about jobs in your workspace. Review each match before linking it to a job.</p>
+    {error && <p role="alert">{error}</p>}
+    {!accounts && (error ? <Button type="button" variant="outline" onClick={load}>Retry mail sources</Button> : <p role="status">Loading mail sources…</p>)}
+    {accounts && !accounts.length && <section className="panel">
+      <p>Connect a mail source to check for replies.</p>
+      <Button type="button" onClick={() => go('Connections', 'email')}>Connect an inbox</Button>
+    </section>}
+    {Boolean(accounts?.length) && <section className="panel" aria-label="Check job mail">
+      <form onSubmit={event => { event.preventDefault(); search() }}>
+        <fieldset disabled={Boolean(busy)}>
+          <legend>Check job mail</legend>
+          <label htmlFor="job-mail-source">Mail source</label>
+          <select id="job-mail-source" value={provider} onChange={event => { setProvider(event.target.value); clear() }}>
+            {accounts.map(a => <option key={a.provider} value={a.provider}>{labels[a.provider]}{a.provider !== 'apple' && ' · ' + a.email}</option>)}
+          </select>
+          <label htmlFor="job-mail-jobs">Tracked jobs</label>
+          <select id="job-mail-jobs" value={jobId} onChange={event => { setJobId(event.target.value); clear() }}>
+            <option value="">All tracked jobs</option>
+            {jobs.map(job => <option key={job.id} value={job.id}>{job.company} · {job.title}</option>)}
+          </select>
+          <p>{jobs.length ? 'Each check searches up to four tracked employers and reviews up to 15 messages per employer.' : 'Save a job in Applications to check for its replies.'}</p>
+          <Button type="submit" disabled={!jobs.length}>Check for replies</Button>
         </fieldset>
       </form>
-      {running === 'scan' && <div role="status"><p>Searching the inbox…</p><Button type="button" variant="ghost" onClick={cancel}>Cancel search</Button></div>}
-      {currentResults && <div><p role="status">{currentResults.messages.length ? currentResults.messages.length + ' possible matches. Review the sender and subject before linking.' : 'No matching inbox messages found.'}</p>
-        <ul>{currentResults.messages.map(message => <li key={message.key}>
-          <Button type="button" variant="ghost" disabled={!!running} onClick={() => { select(message); setIncludePreview(false); setError('') }}>
-            {message.subject} · {message.from || 'Unknown sender'}
-          </Button>
+      {busy === 'scan' && <div className="toolbar"><span role="status">Checking job mail…</span><Button type="button" variant="outline" onClick={cancel}>Cancel check</Button></div>}
+      {results && <>
+        <p role="status">{visible.length ? visible.length + (visible.length === 1 ? ' matching reply.' : ' matching replies.') : 'No matching replies found.'}
+          {' '}Checked {results.checked} of {results.totalCompanies} tracked {results.totalCompanies === 1 ? 'employer' : 'employers'}.</p>
+        {results.nextOffset != null && <Button type="button" variant="outline" disabled={Boolean(busy)} onClick={() => search(results.nextOffset)}>Check next employers</Button>}
+        <ul>{visible.map(row => <li key={row.message.key}>
+          <Button type="button" variant="link" disabled={Boolean(busy)} onClick={() => { select(row); setIncludePreview(false); setError('') }}>{row.message.subject}</Button>
+          {' · '}{row.company} · {row.title}
         </li>)}</ul>
-      </div>}
+      </>}
     </section>}
-    {currentResults && selected && <section className="panel" aria-label="Review reply">
-      <h3>Review reply</h3>
-      <p><strong>{selected.subject}</strong><br />From {selected.from || 'unknown sender'}<br />
-        {selected.receivedAt && <time dateTime={selected.receivedAt}>{new Date(selected.receivedAt).toLocaleString()}</time>}</p>
-      {selected.preview && <blockquote>{selected.preview}</blockquote>}
-      {selected.url && <Button type="button" variant="outline" disabled={!!running} onClick={() => run('open', () => call('app.openExternal', { url: selected.url }))}>Read original message</Button>}
-      <p>Save a note on <strong>{job.company} · {job.title}</strong> with the sender, subject, received time, mailbox and message reference. The job keeps its current stage.</p>
-      {selected.preview && <label><input type="checkbox" disabled={!!running} checked={includePreview} onChange={e => setIncludePreview(e.target.checked)} /> Include the displayed excerpt in the note</label>}
-      <Button type="button" disabled={!!running} onClick={link}>Link reply to this job</Button>
-      <Button type="button" variant="ghost" disabled={!!running} onClick={() => select(null)}>Cancel review</Button>
+    {message && <section className="panel" aria-label="Review reply">
+      <h2>Review reply</h2>
+      <p><strong>{message.subject}</strong><br />From {message.from || 'unknown sender'}<br />
+        {message.receivedAt && <time dateTime={message.receivedAt}>{new Date(message.receivedAt).toLocaleString()}</time>}</p>
+      {message.preview && <blockquote>{message.preview}</blockquote>}
+      {message.url && <Button type="button" variant="outline" onClick={() => call('app.openExternal', { url: message.url }).catch(err => setError(err.message))}>Read original message</Button>}
+      <p>Link this reply to <strong>{target.company} · {target.title}</strong>. The note includes the sender, subject, date and source.</p>
+      {message.preview && <label><input type="checkbox" checked={includePreview} disabled={Boolean(busy)} onChange={event => setIncludePreview(event.target.checked)} /> Include the displayed excerpt in the note</label>}
+      <div className="toolbar">
+        <Button type="button" disabled={Boolean(busy)} onClick={link}>Link reply to this job</Button>
+        <Button type="button" variant="outline" disabled={Boolean(busy)} onClick={() => select(null)}>Cancel review</Button>
+      </div>
     </section>}
-    {error && <p role="alert">{error}</p>}
+    {linkedNotes.length > 0 && <section className="panel" aria-label="Previously linked replies">
+      <h2>Previously linked replies</h2>
+      {linkedNotes.filter(note => !jobId || note.jobId === jobId).map(note => {
+        const job = jobs.find(item => item.id === note.jobId)
+        return <details key={note.id}><summary>{job.company} · {job.title} · {note.title}</summary><pre>{note.body}</pre></details>
+      })}
+    </section>}
   </section>
 }

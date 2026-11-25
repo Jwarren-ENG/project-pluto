@@ -1,15 +1,19 @@
-# PROJECT PLUTO
+# Project Pluto
 
-A local desktop workspace for finding roles, preparing applications, keeping submission receipts and organizing interview notes. Available for macOS and Windows.
+Draft job applications with your ChatGPT subscription through the official Codex CLI. Project Pluto is a local desktop workspace for macOS and Windows where you can find roles, review drafts, keep submission receipts and organize interview notes.
 
-[Download the desktop app](https://github.com/Jwarren-ENG/project-pluto/releases/latest) · [Installation guide](docs/install.md) · [License](LICENSE)
+Install Codex on the same computer, then choose **Connections → AI for drafts → ChatGPT subscription · Codex**. Select **Use subscription for drafts** to reuse a sign-in, or **Sign in with ChatGPT** to open the official browser login. Drafts use your ChatGPT plan’s Codex access and usage limits. [Setup guide](docs/providers.md) · [Codex CLI installation](https://developers.openai.com/codex/cli/)
+
+[Download the desktop app](https://github.com/Jwarren-ENG/project-pluto/releases/latest) · [Getting started with pictures](docs/getting-started.md) · [Installation guide](docs/install.md) · [License](LICENSE)
 
 ![The Today view with fictional application records and an upcoming interview](docs/preview.png)
 
+Save your own job lists under **Discover → Sources**. [Job source guide](docs/sources.md)
+
 ## Start your search
 
-1. Open **Today** and choose **Start with your résumé**. Import a file or paste your experience. Review the extracted facts and confirm the details you want saved. You can add work examples, location preferences and a selected excerpt from a previous chat. [Profile guide](docs/profile.md)
-2. In **Daily budget**, move the jobs per day slider. Choose your model and check the input and output rates. The estimate updates as you move the slider. Save your target to track the day's progress on Today. [Budget guide](docs/budget.md). Each estimate depends on the amount of research, writing and tool use per application.
+1. Open **Today** and choose **Add résumé**. Import a file or paste your experience. Review the extracted facts and confirm the details you want saved. You can add work examples, location preferences and a selected excerpt from a previous chat. [Profile guide](docs/profile.md)
+2. In **Daily budget**, move the jobs per day slider to see estimated workload or cost. A new budget starts with subscription workload when Codex is selected for drafts. For an API estimate, edit the example rates to match your model. Save your target to track daily progress on Today. [Budget guide](docs/budget.md)
 3. Go to **Applications** to save a job from its employer's posting. For an assisted search, configure Firecrawl in **Connections** and enter a role and location under **Discover**. The daily discovery option runs while the app is open.
 4. Open a saved role to prepare your materials. With a provider connected, you can request a draft based on confirmed experience, edit it and save your reviewed résumé as a PDF. Open the employer's application, fill in the form and submit on the employer's site. Right click inside the form or press Command Shift F on Mac or Control Shift F on Windows to fill supported contact fields.
 5. Record the employer confirmation and change the stage to **Applied**. The application retains a copy of the résumé text, draft and evidence saved at that moment. For an interview, add the invitation and appointment time.
@@ -18,13 +22,18 @@ A local desktop workspace for finding roles, preparing applications, keeping sub
 
 | To do this | Open |
 | --- | --- |
-| Draft using OpenAI, Anthropic, OpenRouter, a compatible endpoint or a local Ollama model | [AI providers and search](docs/providers.md) |
+| Draft with a ChatGPT subscription, a developer API key, OpenRouter or local Ollama | [AI providers and search](docs/providers.md) |
 | Review relevant Gmail or Outlook replies and associate one with an application | [Mail setup](docs/mail.md) |
+| Save a reviewed résumé PDF to your Google Drive | [Google Drive setup](docs/drive.md) |
 | Keep Markdown notes or exchange them with an optional Obsidian vault | [Workspace and vault](docs/workspace.md) |
+
+Choose your drafting model in **Connections → AI for drafts**. Refresh the provider’s list to see dated models newest first, followed by undated models in the provider’s order. Your saved choice stays selected. [Model chooser](docs/providers.md#choose-a-drafting-model)
+
+If your primary provider reaches its quota, you can opt into a fallback through OpenRouter’s free models. Enabling it requires an OpenRouter API key and installs a managed local OmniRoute gateway in the background. Connections shows setup progress. Turning the fallback off or quitting Pluto stops the gateway. [Free fallback setup](docs/providers.md#free-fallback-with-omniroute)
 
 The app starts with an empty workspace. It keeps your records in the current operating system user's application data directory. API credentials use operating system protected encryption. Your résumé, job records and notes are stored locally in a database. A vault export creates readable Markdown files in the folder you choose. Select a private folder if your materials contain personal information.
 
-AI requests use the provider you configure. Firecrawl uses its own credits. A chat subscription and developer API billing can have different terms. A local model can be used without a hosted model fee. The app can also track applications and notes without a provider.
+Hosted API requests, OpenRouter inference and Firecrawl searches use their respective accounts and billing. Anthropic supports API keys only. Local Ollama has a $0 hosted model fee. The app can also track applications and notes without a provider.
 
 ## Run from source
 

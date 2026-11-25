@@ -351,7 +351,10 @@ function jobPage(job) {
 function vaultRoot(directory, mode) {
   const vault = realpathSync(directory)
   if (!lstatSync(vault).isDirectory()) throw new Error('Choose an Obsidian vault directory.')
-  const root = join(vault, 'PROJECT PLUTO')
+  const current = join(vault, 'Project Pluto')
+  const previous = join(vault, 'PROJECT PLUTO')
+  const existing = name => lstatSync(name, { throwIfNoEntry: false })
+  const root = !existing(current) && existing(previous) ? previous : current
   if (mode === 'export') {
     try { mkdirSync(root, { mode: 0o700 }) } catch (err) { if (err.code !== 'EEXIST') throw err }
   }

@@ -1,8 +1,13 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
+import { orderModels, readCatalog } from './model-catalog.mjs'
+import { createFreeFallback } from './free-fallback.mjs'
 
 const providers = {
+  codex: { label: 'ChatGPT subscription · Codex' },
   openai: { label: 'OpenAI', endpoint: 'https://api.openai.com/v1', model: 'gpt-4.1-mini' },
+  xai: { label: 'Grok', endpoint: 'https://api.x.ai/v1', model: '' },
+  gemini: { label: 'Gemini', endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai', model: '' },
   anthropic: { label: 'Anthropic', endpoint: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-6' },
   openrouter: { label: 'OpenRouter', endpoint: 'https://openrouter.ai/api/v1', model: 'openrouter/auto' },
   custom: { label: 'OpenAI compatible', endpoint: '', model: '' },
@@ -60,7 +65,10 @@ async function requestJSON(fetchImpl, label, url, { headers = {}, body, signal }
     await response.body?.cancel().catch(() => {})
     const advice = [401, 403].includes(response.status) ? ' Check your key and account permissions.' :
       response.status === 429 ? ' Check your rate limit or available credits.' : ''
-    throw new Error(label + ' returned HTTP ' + response.status + '.' + advice)
+    const error = new Error(label + ' returned HTTP ' + response.status + '.' + advice)
+    error.status = response.status
+    if (response.status === 429 || (response.status === 402 && ['OpenRouter', 'OpenAI'].includes(label))) error.code = 'MODEL_QUOTA'
+    throw error
   }
   try {
     const chunks = []
@@ -101,11 +109,11 @@ async function openRouterKey(openExternal, fetchImpl, signal) {
         }
         const value = callback.searchParams.get('code')
         if (!value || value.length > 4096 || callback.searchParams.has('error')) {
-          res.writeHead(400, headers).end('Authorization did not complete. Return to PROJECT PLUTO.')
+          res.writeHead(400, headers).end('Authorization did not complete. Return to Project Pluto.')
           reject(new Error('OpenRouter authorization did not complete.'))
           return
         }
-        res.writeHead(200, headers).end('Return to PROJECT PLUTO to see the sign-in result.')
+        res.writeHead(200, headers).end('Return to Project Pluto to see the sign-in result.')
         resolve(value)
       })
       Promise.resolve().then(() => openExternal(destination.href)).catch(() => reject(new Error('Could not open the system browser for OpenRouter.')))
@@ -127,8 +135,36 @@ function selectedFields(record, fields) {
   }))
 }
 
-export function createProviders({ secrets, prefs, openExternal, fetchImpl = globalThis.fetch }) {
+const subscriptionAdvice = {
+  missing: 'Install the Codex CLI, then check the connection again.',
+  signedOut: 'Sign in with ChatGPT in Connections to use your subscription.',
+  other: 'Codex is using another login method. Switch Codex to ChatGPT to use your subscription.',
+  unsupported: 'Update the Codex CLI, then check the connection again.',
+}
+
+export function createProviders({ secrets, prefs, openExternal, codex, omniRoute, fetchImpl = globalThis.fetch }) {
+  const fallback = createFreeFallback({
+    prefs, secrets, fetchImpl, omniRoute,
+    getOpenRouterKey: () => credential('openrouter', providers.openrouter.endpoint),
+  })
   let pendingSignIn
+  let pendingProvider
+  let subscriptionDrafts = new AbortController()
+  function cancelDrafts() {
+    subscriptionDrafts.abort()
+    subscriptionDrafts = new AbortController()
+  }
+  function cancelLogin(id) {
+    if (!id || pendingProvider === id) pendingSignIn?.abort()
+  }
+  async function subscriptionStatus() {
+    if (!codex) return { state: 'missing' }
+    const { state } = await codex.status()
+    return { state: state === 'chatgpt' || Object.hasOwn(subscriptionAdvice, state) ? state : 'unsupported' }
+  }
+  function requireSubscription(state) {
+    if (state !== 'chatgpt') throw new Error(subscriptionAdvice[state] || 'Check your ChatGPT sign-in in Connections.')
+  }
   let writes = Promise.resolve()
   function serialize(action) {
     const next = writes.then(action)
@@ -161,13 +197,45 @@ export function createProviders({ secrets, prefs, openExternal, fetchImpl = glob
 
   async function configure({ provider, model, endpoint, apiKey, auth } = {}) {
     const id = checkId(provider)
-    if (id === 'openrouter' && auth === 'cancel') {
-      pendingSignIn?.abort()
+    if (['openrouter', 'codex'].includes(id) && auth === 'cancel') {
+      cancelLogin(id)
       return settings()
+    }
+    if (id === 'codex') {
+      if (apiKey != null || endpoint != null || (auth !== undefined && auth !== 'login')) {
+        throw new Error('Choose ChatGPT sign-in to connect this provider.')
+      }
+      const selectedModel = model === undefined ? config(id).model : model === '' ? '' : requiredText(model, 'Codex model', 256)
+      if (selectedModel && !/^[a-z0-9][a-z0-9._:\/-]*$/i.test(selectedModel)) throw new Error('Select a valid Codex model.')
+      cancelLogin()
+      const attempt = new AbortController()
+      pendingProvider = id
+      pendingSignIn = attempt
+      const signal = AbortSignal.any([attempt.signal, AbortSignal.timeout(180_000)])
+      try {
+        let { state } = await subscriptionStatus()
+        signal.throwIfAborted()
+        if (state === 'signedOut' && auth === 'login') {
+          await codex.login(signal)
+          state = (await subscriptionStatus()).state
+        }
+        requireSubscription(state)
+        return await serialize(() => {
+          signal.throwIfAborted()
+          prefs.set(prefKey(id), { configured: true, model: selectedModel || '' })
+          prefs.set(activePref, id)
+          return settings()
+        })
+      } catch (error) {
+        if (signal.aborted) throw new Error('ChatGPT sign-in was canceled or timed out.')
+        throw error
+      } finally {
+        if (pendingSignIn === attempt) pendingSignIn = pendingProvider = undefined
+      }
     }
     if (auth !== undefined && (auth !== 'oauth' || id !== 'openrouter')) throw new Error('This sign-in option is unavailable.')
     if (apiKey !== undefined && typeof apiKey !== 'string') throw new Error('Enter a valid API key.')
-    if (id !== 'firecrawl') pendingSignIn?.abort()
+    if (id !== 'firecrawl') cancelLogin()
     const old = config(id)
     const address = endpointFor(id, endpoint ?? old.endpoint)
     const selectedModel = id === 'firecrawl' ? undefined : requiredText(model ?? old.model, 'model ID', 256)
@@ -178,6 +246,7 @@ export function createProviders({ secrets, prefs, openExternal, fetchImpl = glob
       if (auth === 'oauth') {
         if (typeof openExternal !== 'function' || key) throw new Error('Use OpenRouter browser sign-in or enter an API key.')
         signIn = new AbortController()
+        pendingProvider = id
         pendingSignIn = signIn
         const signal = AbortSignal.any([signIn.signal, AbortSignal.timeout(180_000)])
         key = await openRouterKey(openExternal, fetchImpl, signal)
@@ -187,20 +256,23 @@ export function createProviders({ secrets, prefs, openExternal, fetchImpl = glob
         if (key) await secrets.set(secretKey(id), JSON.stringify({ endpoint: address, key }))
         else if (id !== 'ollama') await credential(id, address)
         prefs.set(prefKey(id), { configured: true, endpoint: address, ...(selectedModel && { model: selectedModel }) })
+        if (key || old.endpoint !== address) prefs.set('catalog.' + id, null)
         if (id !== 'firecrawl') prefs.set(activePref, id)
         return settings()
       })
     } finally {
-      if (pendingSignIn === signIn) pendingSignIn = undefined
+      if (pendingSignIn === signIn) pendingSignIn = pendingProvider = undefined
     }
   }
 
   function disconnect({ provider } = {}) {
     const id = checkId(provider)
-    if (id === 'openrouter') pendingSignIn?.abort()
+    cancelLogin(id)
+    if (id === 'codex') cancelDrafts()
     return serialize(async () => {
-      if (id !== 'ollama') await secrets.remove(secretKey(id))
+      if (id !== 'ollama' && id !== 'codex') await secrets.remove(secretKey(id))
       prefs.set(prefKey(id), null)
+      prefs.set('catalog.' + id, null)
       if (prefs.get(activePref) === id) prefs.set(activePref, null)
       return settings()
     })
@@ -214,7 +286,45 @@ export function createProviders({ secrets, prefs, openExternal, fetchImpl = glob
     return { endpoint, model: saved.model, headers: key ? (id === 'anthropic' ? { 'x-api-key': key, 'anthropic-version': '2023-06-01' } : { Authorization: 'Bearer ' + key }) : {} }
   }
 
+  async function models({ provider, endpoint, apiKey } = {}) {
+    const id = checkId(provider)
+    if (id === 'firecrawl') throw new Error('Select an AI provider.')
+    const saved = config(id)
+    const address = id === 'codex' ? undefined : endpointFor(id, endpoint ?? saved.endpoint)
+    const useCache = !apiKey && (id === 'openrouter' || (id !== 'codex' && saved.configured && address === saved.endpoint))
+    let rows
+    try {
+      if (id === 'codex') {
+        requireSubscription((await subscriptionStatus()).state)
+        rows = await codex.models()
+      } else {
+        let headers = {}
+        if (id !== 'ollama' && id !== 'openrouter') {
+          const key = apiKey ? requiredText(apiKey, 'API key', 8192) : await credential(id, address)
+          headers = id === 'anthropic' ? { 'x-api-key': key, 'anthropic-version': '2023-06-01' } : { Authorization: 'Bearer ' + key }
+        }
+        rows = await readCatalog(id, suffix => requestJSON(fetchImpl, providers[id].label, address + suffix, { headers }))
+      }
+    } catch (error) {
+      const previous = useCache && prefs.get('catalog.' + id)
+      if (previous?.endpoint === address && previous?.value && ![401, 403].includes(error.status)) return { ...previous.value, source: 'saved' }
+      throw error
+    }
+    const value = { ...orderModels(rows), asOf: new Date().toISOString(), source: 'provider' }
+    if (useCache && (config(id).configured || id === 'openrouter')) prefs.set('catalog.' + id, { endpoint: address, value })
+    return value
+  }
+
   async function generate(id, system, user, maxTokens) {
+    if (id === 'codex') {
+      const { signal } = subscriptionDrafts
+      requireSubscription((await subscriptionStatus()).state)
+      signal.throwIfAborted()
+      if (!config(id).configured) throw new Error('Connect your ChatGPT subscription in Connections first.')
+      const result = await codex.draft(system, user, signal, config(id).model || undefined)
+      signal.throwIfAborted()
+      return result
+    }
     const { model, endpoint, headers } = await connection(id)
     const messages = [{ role: 'system', content: system }, { role: 'user', content: user }]
     let path, body
@@ -242,7 +352,10 @@ export function createProviders({ secrets, prefs, openExternal, fetchImpl = glob
 
   async function test({ provider } = {}) {
     const id = checkId(provider)
-    if (id === 'firecrawl') {
+    if (id === 'codex') {
+      if (!config(id).configured) throw new Error('Connect your ChatGPT subscription in Connections first.')
+      requireSubscription((await subscriptionStatus()).state)
+    } else if (id === 'firecrawl') {
       const { endpoint, headers } = await connection(id)
       const data = await requestJSON(fetchImpl, 'Firecrawl', endpoint + '/team/credit-usage', { headers })
       if (data?.success !== true || !Number.isFinite(data.data?.remainingCredits)) throw new Error('Firecrawl did not confirm credit access.')
@@ -265,7 +378,24 @@ export function createProviders({ secrets, prefs, openExternal, fetchImpl = glob
     }
     const listing = selectedFields(job, ['company', 'title', 'description', 'location', 'salary'])
     if (!Object.keys(applicant).length || !Object.keys(listing).length) throw new Error('Add a profile and a job before drafting.')
-    return generate(id, instructions, JSON.stringify({ profile: applicant, job: listing }), 1200)
+    const prompt = JSON.stringify({ profile: applicant, job: listing })
+    try {
+      return await generate(id, instructions, prompt, 1200)
+    } catch (error) {
+      if (error.code !== 'MODEL_QUOTA' || !(await fallback.status()).enabled || (id === 'openrouter' && config(id).model === 'openrouter/free')) throw error
+      return fallback.draft(instructions, prompt)
+    }
+  }
+
+  async function scrape(url) {
+    const { endpoint, headers } = await connection('firecrawl')
+    const result = await requestJSON(fetchImpl, 'Firecrawl', endpoint + '/scrape', {
+      headers, body: { url, formats: ['markdown'], onlyMainContent: true },
+    })
+    if (result?.success !== true || typeof result.data?.markdown !== 'string') {
+      throw new Error('Firecrawl could not read the source page.')
+    }
+    return result.data.markdown
   }
 
   async function search({ query } = {}) {
@@ -284,5 +414,10 @@ export function createProviders({ secrets, prefs, openExternal, fetchImpl = glob
     }
     return results
   }
-  return { settings, configure, disconnect, test, draft, search }
+  return {
+    settings, configure, disconnect, test, draft, search, scrape, models, subscriptionStatus,
+    fallbackStatus: () => fallback.status(), enableFallback: options => fallback.enable(options),
+    disableFallback: () => fallback.disable(), setFallbackModel: options => fallback.setModel(options),
+    restoreFallback: () => fallback.restore?.(), close() { cancelLogin(); cancelDrafts(); fallback.close() },
+  }
 }

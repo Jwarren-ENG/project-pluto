@@ -1,11 +1,11 @@
 {
   "name": "project-pluto-desktop",
-  "productName": "PROJECT PLUTO",
-  "version": "0.1.0",
+  "productName": "Project Pluto",
+  "version": "0.2.1",
   "private": true,
   "description": "A desktop workspace for job applications and interview notes.",
   "license": "MIT",
-  "author": "PROJECT PLUTO contributors",
+  "author": "Project Pluto contributors",
   "main": "desktop/main.mjs",
   "type": "module",
   "scripts": {
@@ -15,7 +15,9 @@
     "smoke": "node tests/smoke.mjs",
     "dist": "npm run build && electron-builder --publish never",
     "package:native": "electron-builder --publish never",
-    "verify:package": "node build/verify-package.mjs"
+    "verify:package": "node build/verify-package.mjs",
+    "smoke:sources": "node tests/discover-ui.mjs",
+    "smoke:interactions": "node tests/budget-chart-smoke.mjs && node tests/activity-smoke.mjs"
   },
   "dependencies": {
     "@fontsource-variable/ibm-plex-sans": "^5.3.0",
@@ -40,7 +42,7 @@
   },
   "build": {
     "appId": "app.projectpluto.desktop",
-    "productName": "PROJECT PLUTO",
+    "productName": "Project Pluto",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -50,7 +52,9 @@
       "desktop/**/*.mjs",
       "desktop/**/*.cjs",
       "package.json",
-      "LICENSE"
+      "LICENSE",
+      "desktop/omniroute-runtime/*.json",
+      "desktop/oauth-build.json"
     ],
     "asar": true,
     "asarUnpack": [
@@ -65,14 +69,18 @@
       "category": "public.app-category.productivity",
       "icon": "build/icon.icns",
       "identity": "-",
-      "artifactName": "PROJECT-PLUTO-${version}-macOS-${arch}.${ext}"
+      "artifactName": "Project-Pluto-${version}-macOS-${arch}.${ext}",
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "With your permission, Pluto checks Apple Mail for replies about jobs you track."
+      },
+      "entitlements": "build/entitlements.mac.plist"
     },
     "win": {
       "target": [
         "nsis"
       ],
       "icon": "build/icon.ico",
-      "artifactName": "PROJECT-PLUTO-${version}-Windows-${arch}.${ext}"
+      "artifactName": "Project-Pluto-${version}-Windows-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,

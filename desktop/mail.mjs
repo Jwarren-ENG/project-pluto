@@ -56,10 +56,10 @@ async function authorize(provider, clientId, openExternal, signal) {
     if (params.getAll('state').length !== 1 || params.get('state') !== state) return reply(400, 'Invalid sign-in state.')
     const codes = params.getAll('code')
     if (params.has('error')) {
-      reply(200, 'Sign-in was not completed. Return to PROJECT PLUTO.')
+      reply(200, 'Sign-in was not completed. Return to Project Pluto.')
       completion.reject(problem(params.get('error') === 'access_denied' ? 'Permission was declined.' : 'The provider could not complete sign-in. Check the desktop registration.'))
     } else if (codes.length === 1 && codes[0] && codes[0].length <= 8192) {
-      reply(200, 'Return to PROJECT PLUTO to finish connecting.')
+      reply(200, 'Return to Project Pluto to finish connecting.')
       completion.resolve(codes[0])
     } else reply(400, 'Missing authorization code.')
   })
@@ -128,7 +128,7 @@ function employerPhrase(value) {
   return phrase
 }
 
-export function createMail({ secrets, openExternal, fetchImpl = globalThis.fetch, signInTimeoutMs = 180000, scanTimeoutMs = 45000 }) {
+export function createMail({ secrets, openExternal, registrations = {}, fetchImpl = globalThis.fetch, signInTimeoutMs = 180000, scanTimeoutMs = 45000 }) {
   const active = new Map()
   const tokens = new Map()
 
@@ -184,7 +184,7 @@ export function createMail({ secrets, openExternal, fetchImpl = globalThis.fetch
       const busy = active.get(provider)?.kind || ''
       try {
         const account = await readAccount(provider)
-        return { provider, email: account?.email || '', busy }
+        return { provider, email: account?.email || '', busy, direct: Boolean(registrations[provider]?.clientId) }
       } catch (error) {
         return { provider, email: '', busy, error: error.message }
       }
@@ -213,7 +213,7 @@ export function createMail({ secrets, openExternal, fetchImpl = globalThis.fetch
   function connect(payload) {
     return operation('connect', payload, signInTimeoutMs, async (provider, signal) => {
       if (await readAccount(provider)) throw problem('Disconnect the current account before connecting another.')
-      const client = registration(provider, payload)
+      const client = registration(provider, payload.clientId ? payload : registrations[provider] || {})
       const grant = await authorize(provider, client.clientId, openExternal, signal)
       const token = await tokenRequest(provider, client, { grant_type: 'authorization_code', ...grant }, signal)
       if (typeof token.refresh !== 'string' || !token.refresh) throw problem('The provider did not grant offline access. Check consent and try again.')

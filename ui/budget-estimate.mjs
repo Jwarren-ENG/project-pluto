@@ -6,6 +6,8 @@ export const rateCards = {
   custom: { label: 'Custom API', input: 1, output: 4 },
 }
 
+export const forecastDays = 30
+
 export const limits = { jobs: 1000, tokens: 10_000_000, rate: 100_000, toolCost: 10_000, subscription: 1_000_000 }
 
 export function budgetDefaults() {
@@ -75,9 +77,10 @@ export function estimateBudget(form) {
     ]
     if (provider === 'ollama') modelFees = [0, 0]
     const tools = jobs * toolCostPerRole
-    const subscription = provider === 'subscription' && monthlySubscription !== null ? monthlySubscription * days / 30 : null
+    const subscription = provider === 'subscription' && monthlySubscription !== null ? monthlySubscription * days / forecastDays : null
     const total = modelFees ? modelFees.map(fee => fee + tools) : subscription !== null ? [subscription + tools, subscription + tools] : null
     return { jobs, tokens, modelFees, subscription, tools, total }
   }
-  return { day: period(1), month: period(30) }
+  const days = Array.from({ length: forecastDays + 1 }, (_, day) => period(day))
+  return { day: days[1], month: days[forecastDays], days }
 }

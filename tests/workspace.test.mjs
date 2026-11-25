@@ -16,7 +16,7 @@ function setup(t) {
   mkdirSync(vault)
   const ws = createWorkspace(data)
   t.after(() => { ws.close(); rmSync(dir, { recursive: true, force: true }) })
-  const pages = join(vault, 'PROJECT PLUTO')
+  const pages = join(vault, 'Project Pluto')
   const file = id => join(pages, readdirSync(pages).find(p => p.endsWith(' - ' + id + '.md')))
   return { dir, data, vault, pages, ws, file }
 }
@@ -219,7 +219,7 @@ test('new managed notes import by ID, while unmanaged files and dangling links s
 test('refuses a symlinked managed directory and an unsupported database version', t => {
   const { ws, dir, vault } = setup(t)
   if (process.platform !== 'win32') {
-    symlinkSync(dir, join(vault, 'PROJECT PLUTO'), 'dir')
+    symlinkSync(dir, join(vault, 'Project Pluto'), 'dir')
     assert.throws(() => ws.exportVault(vault), /real directory/)
   }
   const other = join(dir, 'newer')
@@ -228,4 +228,14 @@ test('refuses a symlinked managed directory and an unsupported database version'
   sql.exec('PRAGMA user_version=2')
   sql.close()
   assert.throws(() => createWorkspace(other), /newer version/)
+})
+
+test('a vault created under the old product name keeps the same pages', t => {
+  const { ws, vault } = setup(t)
+  const old = join(vault, 'PROJECT PLUTO')
+  mkdirSync(old)
+  const job = ws.saveJob(opening)
+  ws.exportVault(vault)
+  assert.equal(readdirSync(vault).filter(name => name.toLowerCase() === 'project pluto').length, 1)
+  assert.ok(readdirSync(old).some(name => name.endsWith(job.id + '.md')))
 })

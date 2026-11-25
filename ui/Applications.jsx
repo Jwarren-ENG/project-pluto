@@ -125,6 +125,13 @@ function JobEditor({ initial, state, refresh, notify, close, reportEditor, reque
   function openEmployer() {
     run('Opening', () => window.pluto.call('application.open', { id: base.id }))
   }
+  function saveToDrive() {
+    run('Uploading', async () => {
+      const result = await window.pluto.call('application.drivePdf', { id: base.id, updatedAt: base.updatedAt })
+      notify(result.alreadySaved ? 'This résumé is already in Google Drive.' : 'Reviewed résumé saved in Google Drive.')
+    })
+  }
+
   function printResume() {
     run('Exporting', async () => {
       const wrote = await window.pluto.call('application.pdf', { id: base.id })
@@ -166,6 +173,8 @@ function JobEditor({ initial, state, refresh, notify, close, reportEditor, reque
             onClick={() => change('resumeText', profile.resumeText)}>{form.resumeText ? 'Replace with profile résumé' : 'Use profile résumé'}</Button>}
           <Button type="button" variant="outline" size="sm" disabled={!!busy || !base.id || !base.resumeText?.trim() || form.resumeText !== base.resumeText}
             onClick={printResume}>Save résumé PDF</Button>
+          <Button type="button" variant="outline" size="sm" disabled={!!busy || !base.id || !base.resumeText?.trim() || form.resumeText !== base.resumeText}
+            onClick={saveToDrive}>{busy === 'Uploading' ? 'Saving to Drive…' : 'Save to Google Drive'}</Button>
         </div>
         {form.resumeText.trim() && form.resumeText !== base.resumeText && <small className="muted">Save your edits before exporting the PDF.</small>}
         <label>Application draft<Textarea aria-label="Application draft" rows={5} value={form.draft} disabled={!!busy} onChange={e => change('draft', e.target.value)} /></label>
@@ -175,7 +184,7 @@ function JobEditor({ initial, state, refresh, notify, close, reportEditor, reque
           </Button>
           <small className="muted">{canDraft ? 'Uses the reviewed profile and this role with your connected provider.' : 'Add a reviewed profile and job title to draft with AI.'}</small>
         </div>
-        {suggestion !== null && <section aria-label="Suggested replacement" className="space-y-2 border-l pl-4">
+        {suggestion !== null && <section aria-label="Suggested replacement" className="space-y-2 py-3">
           <h4>Suggested replacement</h4><pre>{suggestion}</pre>
           <div className="toolbar">
             <Button type="button" variant="outline" size="sm" onClick={() => { change('draft', suggestion); setSuggestion(null) }}>Use suggested draft</Button>
