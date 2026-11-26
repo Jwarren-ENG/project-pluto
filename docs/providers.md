@@ -29,6 +29,8 @@ The ChatGPT subscription check verifies the Codex sign-in. **Test model** for an
 
 Open **Connections → AI for drafts** and select your provider. Use **Load models** or **Refresh models** to fetch its list. Models with dates appear newest first, followed by undated entries in the provider’s order. Ollama uses local modification dates for installed models. Your saved model stays selected across refreshes, even if it drops out of the list.
 
+A new Claude connection starts with Sonnet 5.5. Opus 5.5, Haiku 5.5 and Fable 5.2 are also available in the picker before you enter a key. Loading the account list shows the models that Anthropic returns for that key. Daily budget has rates for each of the four models and uses the Sonnet 4.6 rate for a connection explicitly saved with that model. [Claude models](https://platform.claude.com/docs/en/models/overview) · [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing)
+
 Choose a model and select **Use for drafts** or **Save connection**. If the list is unavailable, you can enter a model ID manually. For a ChatGPT subscription, keep **Account default** to let Codex choose, or select a model and use **Save subscription model** when the connection is active. To estimate API costs, enter the chosen model’s published rates in **Daily budget**. [Budget guide](budget.md#pricing-scenarios)
 
 ## Using an account you already have

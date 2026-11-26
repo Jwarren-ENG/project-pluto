@@ -1,3 +1,4 @@
+import { featureNames, workflowFeatures } from './workflow-features.mjs'
 import { createHash, randomUUID } from 'node:crypto'
 import {
   closeSync, constants, copyFileSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync,
@@ -62,6 +63,91 @@ function receipt(value) {
   return result
 }
 
+const employerPurposes = new Map([
+  ['receipt', 'Application receipt'], ['interview-invite', 'Interview invitation'],
+  ['interview-scheduled', 'Interview scheduled'], ['interview-rescheduled', 'Interview rescheduled'],
+  ['interview-canceled', 'Interview canceled'],
+])
+const mailSources = new Map([['gmail', 'Gmail'], ['outlook', 'Outlook'], ['apple', 'Apple Mail']])
+const messageFields = { provider: 12, key: 256, subject: 500, preview: 500, receivedAt: 40, from: 320, account: 320, url: 4096 }
+const credentialMail = /\b(?:otp|totp|passcode|password|2fa|mfa|one time (?:code|pin|token)|(?:verification|verify|login|log in|sign in|security|authentication|confirmation|access|meeting) (?:code|pin|number|token)|(?:use|enter) (?:this|the|your) code|your (?:code|pin)|(?:code|pin) (?:is )?\d{4,8})\b/i
+const zonedTime = /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,9})?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/
+
+function mailDate(value, allowDay) {
+  if (value == null || value === '') return null
+  if (allowDay && validDay(value)) return value
+  if (typeof value !== 'string' || !zonedTime.test(value) || !validDay(value.slice(0, 10)) || !Number.isFinite(Date.parse(value))) {
+    throw new Error('Use a valid date or an interview time with an explicit UTC offset.')
+  }
+  return new Date(value).toISOString()
+}
+
+function employerUpdate(input) {
+  object(input, 'employer update')
+  if (![null, Object.prototype].includes(Object.getPrototypeOf(input)) ||
+      Object.keys(input).some(key => !['jobId', 'message', 'purpose', 'interviewAt'].includes(key))) {
+    throw new Error('Unexpected employer update details.')
+  }
+  const { jobId, purpose, message } = input
+  validId(jobId)
+  if (!employerPurposes.has(purpose)) throw new Error('Choose a reviewed employer update.')
+  object(message, 'matched mail message')
+  if (![null, Object.prototype].includes(Object.getPrototypeOf(message))) throw new Error('Invalid matched mail metadata.')
+  for (const [field, val] of Object.entries(message)) {
+    if (!Object.hasOwn(messageFields, field) || typeof val !== 'string' || val.length > messageFields[field] || /[\x00-\x1f\x7f]/.test(val)) {
+      throw new Error('Invalid matched mail metadata.')
+    }
+  }
+  if (!mailSources.has(message.provider) || !message.subject?.trim() || typeof message.key !== 'string' ||
+      !/^[a-z0-9_-]{1,256}$/i.test(message.key) || /^\d{1,10}$/.test(message.key)) {
+    throw new Error('A reviewed message needs its provider and stable message reference.')
+  }
+  const content = [message.subject, message.preview].join(' ').normalize('NFKC')
+  const headerAndContent = [message.from, content].join(' ').normalize('NFKC')
+  if (credentialMail.test(headerAndContent.replace(/[^\p{L}\p{N}]+/gu, ' '))) {
+    throw new Error('Verification messages cannot be recorded as employer updates.')
+  }
+  const reviewedAt = mailDate(input.interviewAt, true)
+  if (reviewedAt && (purpose === 'receipt' || purpose === 'interview-invite')) {
+    throw new Error('Only a scheduled, rescheduled or canceled interview can identify an appointment date.')
+  }
+  // Persist a scoped reference and controlled label only. Mail text, links and mailbox identity stay in the scan.
+  const key = hash(JSON.stringify([message.provider, message.key]))
+  const receivedAt = mailDate(message.receivedAt, false) ?? ''
+  const evidence = { source: mailSources.get(message.provider), messageId: key, receivedAt, reference: employerPurposes.get(purpose) }
+  return { jobId, key, purpose, evidence, reviewedAt, content }
+}
+
+function sameSlot(a, b) {
+  if (a === b) return true
+  return zonedTime.test(a) && zonedTime.test(b) && Date.parse(a) === Date.parse(b)
+}
+
+// A reviewed move can replace a future appointment only when its previous slot is identified.
+function identifiesPreviousSlot(content, current) {
+  const slots = [...content.matchAll(/\b(?:(?:moved|rescheduled|changed) from|previously(?: scheduled)? (?:for|at))\s+(\d{4}-\d{2}-\d{2}(?:T[\d:.]+(?:Z|[+-]\d{2}:\d{2}))?)(?![\w:+-])/gi)]
+  return slots.length === 1 && sameSlot(current, slots[0][1])
+}
+
+function applyInterviewMail(job, update, changedAt, lastConfirmation) {
+  const { purpose, reviewedAt, evidence: { receivedAt }, content } = update
+  if (['Offer', 'Closed'].includes(job.stage)) return
+  if (lastConfirmation && (!receivedAt || receivedAt <= lastConfirmation)) return
+  const current = job.interviewAt ?? null
+  const cancel = purpose === 'interview-canceled'
+  if (cancel && !sameSlot(current, reviewedAt)) return
+  if (!cancel && current && !sameSlot(current, reviewedAt)) {
+    const identifiedMove = purpose === 'interview-rescheduled' && identifiesPreviousSlot(content, current)
+    if (!identifiedMove && (!reviewedAt || upcomingInterviews([{ ...job, stage: 'Interview' }]).length)) return
+  }
+  if (!cancel) job.stage = 'Interview'
+  job.interviewAt = cancel ? null : reviewedAt
+  job.interviewStatus = cancel ? 'canceled' : reviewedAt ? 'scheduled' : 'pending'
+  // With no arrival time, a later review must postdate this one before it can reopen a canceled round.
+  job.interviewMailAt = receivedAt || changedAt
+  job.evidence = update.evidence
+}
+
 function transaction(db, action, write = true) {
   db.exec(write ? 'BEGIN IMMEDIATE' : 'BEGIN')
   try {
@@ -88,6 +174,8 @@ function initialize(db) {
       seq INTEGER PRIMARY KEY, job_id TEXT NOT NULL REFERENCES jobs(id), data TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS events_job ON events(job_id, seq);
+    CREATE UNIQUE INDEX IF NOT EXISTS employer_message_key ON events(json_extract(data, '$.employerMessageKey'))
+      WHERE json_extract(data, '$.employerMessageKey') IS NOT NULL;
     CREATE TABLE IF NOT EXISTS submissions (job_id TEXT PRIMARY KEY REFERENCES jobs(id), data TEXT NOT NULL);
     CREATE TRIGGER IF NOT EXISTS protect_submission_update BEFORE UPDATE ON submissions
       BEGIN SELECT RAISE(ABORT, 'Submitted snapshots are immutable'); END;
@@ -127,6 +215,7 @@ export function createWorkspace(directory) {
     db.prepare('INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET data=excluded.data').run(key, JSON.stringify(val))
     return val
   }
+  const getFeatures = () => workflowFeatures(setting('optionalWorkflows'))
   const getSubmission = id => decodeRow(db.prepare('SELECT data FROM submissions WHERE job_id=?').get(id))
   const history = id => db.prepare('SELECT data FROM events WHERE job_id=? ORDER BY seq').all(id).map(decodeRow)
   const jobView = job => ({ ...job, submittedSnapshot: getSubmission(job.id), history: history(job.id) })
@@ -150,6 +239,11 @@ export function createWorkspace(directory) {
       job.stage = input.stage ?? job.stage
       if (!stages.includes(job.stage)) throw new Error('Unknown application stage.')
       if (input.interviewAt !== undefined) job.interviewAt = interviewTime(input.interviewAt)
+      const reopened = old?.interviewStatus === 'canceled' && old.stage !== 'Interview' && job.stage === 'Interview'
+      if (job.interviewAt !== (old?.interviewAt ?? null) || reopened) {
+        job.interviewStatus = job.interviewAt ? 'scheduled' : 'pending'
+        job.interviewMailAt = changedAt
+      }
       const supplied = input.evidence == null ? '' : receipt(input.evidence)
       const fresh = !!supplied && JSON.stringify(supplied) !== JSON.stringify(old?.evidence)
       const transition = job.stage !== (old?.stage ?? 'Saved')
@@ -176,6 +270,60 @@ export function createWorkspace(directory) {
         db.prepare('INSERT INTO submissions VALUES (?,?)').run(id, JSON.stringify(sent))
       }
       return jobView(job)
+    })
+  }
+
+  // Main resolves the provider message and purpose from its account- and role-checked scan cache.
+  function recordEmployerUpdate(input) {
+    const update = employerUpdate(input)
+    const { jobId, key, purpose, evidence, reviewedAt } = update
+    return transaction(db, () => {
+      const job = getJob(jobId)
+      if (!job) throw new Error('The tracked job no longer exists.')
+      const result = (recorded, appointmentChanged) => ({
+        recorded, duplicate: !recorded, jobId, purpose, stage: job.stage, interviewAt: job.interviewAt ?? null, appointmentChanged,
+      })
+      const previous = decodeRow(db.prepare("SELECT data FROM events WHERE json_extract(data,'$.employerMessageKey')=?").get(key))
+      if (previous) {
+        if (previous.jobId !== jobId || previous.purpose !== purpose || previous.reviewedInterviewAt !== reviewedAt) {
+          throw new Error('This message was already recorded with different review details.')
+        }
+        return result(false, false)
+      }
+      const oldAt = job.interviewAt
+      const oldStatus = job.interviewStatus
+      const changedAt = nextRevision(job)
+      if (purpose === 'receipt') {
+        if (!getSubmission(jobId)) {
+          // A receipt identifies the role. Only the employer or user can establish which materials were sent.
+          const sent = { jobId, company: job.company, title: job.title, url: job.url, submittedAt: evidence.receivedAt,
+            evidence, draft: '', resumeText: '' }
+          db.prepare('INSERT INTO submissions(job_id,data) VALUES (?,?)').run(jobId, JSON.stringify(sent))
+        }
+        if (job.stage === 'Saved' || job.stage === 'Preparing') {
+          job.stage = 'Applied'
+          job.evidence = evidence
+        }
+      } else {
+        let lastConfirmation = job.interviewMailAt
+        if (!lastConfirmation && job.interviewAt) {
+          // Older workspaces recorded manual appointments in history before the mail watermark existed.
+          const last = history(jobId).findLast(event => !event.purpose && sameSlot(event.interviewAt, job.interviewAt) &&
+            recordDate(event.recordedAt)?.instant)
+          if (last) lastConfirmation = new Date(last.recordedAt).toISOString()
+        }
+        applyInterviewMail(job, update, changedAt, lastConfirmation)
+      }
+      const appointmentChanged = oldAt !== job.interviewAt || oldStatus !== job.interviewStatus
+      job.updatedAt = changedAt
+      storeJob(job)
+      const event = {
+        jobId, stage: purpose === 'receipt' ? 'Applied' : 'Interview', purpose, employerMessageKey: key,
+        evidence, recordedAt: evidence.receivedAt, appointmentChanged, reviewedInterviewAt: reviewedAt,
+        interviewAt: purpose === 'interview-canceled' ? null : reviewedAt,
+      }
+      db.prepare('INSERT INTO events(job_id,data) VALUES (?,?)').run(jobId, JSON.stringify(event))
+      return result(true, appointmentChanged)
     })
   }
 
@@ -210,7 +358,7 @@ export function createWorkspace(directory) {
       .sort((a, b) => compareRecordDates(recordDate(a.recordedAt), recordDate(b.recordedAt), -1))
     const interviews = upcomingInterviews(jobs)
       .map(({ id: jobId, company, title, interviewAt }) => ({ jobId, company, title, interviewAt }))
-    return { profile: setting('profile'), jobs, notes, schedule: { ...defaults, ...setting('schedule') }, evidence, upcomingInterviews: interviews }
+    return { profile: setting('profile'), features: getFeatures(), jobs, notes, schedule: { ...defaults, ...setting('schedule') }, evidence, upcomingInterviews: interviews }
   }
 
   function sync(directory, mode) {
@@ -298,8 +446,14 @@ export function createWorkspace(directory) {
       return state
     }, false),
     saveJob,
+    recordEmployerUpdate,
     saveNote: input => transaction(db, () => storeNote(input)),
     saveProfile: input => transaction(db, () => set('profile', { ...setting('profile'), ...object(input, 'profile') })),
+    getFeatures,
+    saveFeature: ({ key, enabled }) => transaction(db, () => {
+      if (!Object.hasOwn(featureNames, key) || typeof enabled !== 'boolean') throw new Error('Invalid workflow preference.')
+      return set('optionalWorkflows', { ...getFeatures(), [key]: enabled })
+    }),
     getProfile: () => setting('profile'),
     saveReviewedProfile: ({ changes, expected }) => transaction(db, () => {
       object(changes, 'profile changes')

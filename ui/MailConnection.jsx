@@ -5,7 +5,7 @@ import { Input } from './components/ui/input'
 const names = { gmail: 'Gmail', outlook: 'Outlook', apple: 'Apple Mail' }
 const call = (action, data = {}) => window.pluto.call('mail.' + action, data)
 
-export default function MailConnection({ notify, go, focusOnOpen = false, onBusyChange }) {
+export default function MailConnection({ notify, focusOnOpen = false, onBusyChange, onAccounts }) {
   const [accounts, setAccounts] = useState(null)
   const [setup, setSetup] = useState('')
   const [mailboxes, setMailboxes] = useState(null)
@@ -22,7 +22,7 @@ export default function MailConnection({ notify, go, focusOnOpen = false, onBusy
   const hasApple = accounts?.some(account => account.provider === 'apple' && account.available !== false)
 
   async function refresh() {
-    try { const result = await call('settings'); if (live.current) setAccounts(result) }
+    try { const result = await call('settings'); if (live.current) { setAccounts(result); onAccounts?.(result) } }
     catch (err) { if (live.current) setError(err.message) }
   }
   function stop(task) {
@@ -100,7 +100,7 @@ export default function MailConnection({ notify, go, focusOnOpen = false, onBusy
 
   return <section className="panel" aria-labelledby="email-connections-heading">
     <h2 id="email-connections-heading" ref={heading} tabIndex={-1}>Email</h2>
-    <p>Connect an inbox to find replies about your tracked jobs.</p>
+    <p>Use a connected account for application verification codes, submission receipts and interview scheduling messages.</p>
     {!accounts && !error && <p role="status">Checking connections…</p>}
     {accounts?.map(account => {
       const chosen = account.email || account.error
@@ -116,7 +116,6 @@ export default function MailConnection({ notify, go, focusOnOpen = false, onBusy
           </Button>}
       </div>
     })}
-    {go && accounts?.some(account => account.email && !account.error) && <Button type="button" variant="link" onClick={() => go('Mail')}>Open job mail</Button>}
     {!setup && error && <p role="alert">{error}</p>}
     {!accounts && error && <Button type="button" variant="link" onClick={refresh}>Retry email status</Button>}
     {setup && <dialog ref={dialog} aria-labelledby="mail-setup-title"

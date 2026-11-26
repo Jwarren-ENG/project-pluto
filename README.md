@@ -18,6 +18,8 @@ Save your own job lists under **Discover → Sources**. [Job source guide](docs/
 4. Open a saved role to prepare your materials. With a provider connected, you can request a draft based on confirmed experience, edit it and save your reviewed résumé as a PDF. Open the employer's application, fill in the form and submit on the employer's site. Right click inside the form or press Command Shift F on Mac or Control Shift F on Windows to fill supported contact fields.
 5. Record the employer confirmation and change the stage to **Applied**. The application retains a copy of the résumé text, draft and evidence saved at that moment. For an interview, add the invitation and appointment time.
 
+Open **Connections → Optional workflows** to turn on study guides, interview prep, email checking or auto apply separately. Each switch shows the setup it needs. [Workflow guide](docs/getting-started.md#choose-optional-workflows)
+
 ## Connect the services you use
 
 | To do this | Open |

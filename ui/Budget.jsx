@@ -291,7 +291,7 @@ export default function Budget({ state, refresh, notify, setup }) {
         <summary>Token and pricing assumptions</summary>
         <fieldset disabled={saving}>
           <legend>Tokens per role</legend>
-          <p>Enter the combined input and output for all calls and retries per job. The starting ranges are examples.</p>
+          <p>Enter the combined input and output for all calls and retries per job. The starting ranges are examples. Optional Notebook generation uses additional tokens.</p>
           {[['inputLow', 'Low input tokens per role'], ['inputHigh', 'High input tokens per role'],
             ['outputLow', 'Low output tokens per role'], ['outputHigh', 'High output tokens per role']].map(([key, label]) =>
             <NumberField key={key} label={label} max={limits.tokens} value={form[key]} onChange={v => setField(key, v)} />)}

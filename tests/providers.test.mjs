@@ -29,9 +29,24 @@ function fixture(handle = () => ({}), extras = {}) {
   return { service: createProviders(deps), deps, prefs, vault, calls }
 }
 
+test('Claude defaults to Sonnet 5.5 and keeps an explicitly saved Sonnet 4.6', async () => {
+  const { service, deps, calls } = fixture(() => ({ content: [{ type: 'text', text: 'Draft.' }] }))
+  assert.equal(service.settings().providers.openai.model, 'gpt-6.2-sol')
+  const provider = 'anthropic'
+  assert.equal(service.settings().providers.anthropic.model, 'claude-sonnet-5-5')
+  await service.configure({ provider, apiKey: 'fixture-key' })
+  await service.draft(sample)
+  assert.equal(calls.at(-1).body.model, 'claude-sonnet-5-5')
+  await service.configure({ provider, model: 'claude-sonnet-4-6' })
+  const restored = createProviders(deps)
+  assert.equal(restored.settings().providers.anthropic.model, 'claude-sonnet-4-6')
+  await restored.draft(sample)
+  assert.equal(calls.at(-1).body.model, 'claude-sonnet-4-6')
+})
+
 for (const [provider, endpoint, model] of [
   ['openai', 'https://api.openai.com/v1/chat/completions', 'gpt-4.1-mini'],
-  ['anthropic', 'https://api.anthropic.com/v1/messages', 'claude-sonnet-4-6'],
+  ['anthropic', 'https://api.anthropic.com/v1/messages', 'claude-sonnet-5-5'],
   ['openrouter', 'https://openrouter.ai/api/v1/chat/completions', 'openrouter/auto'],
   ['custom', 'https://example.test/api/v1/chat/completions', 'demo-model'],
   ['ollama', 'http://127.0.0.1:11434/api/chat', 'demo-model'],
@@ -303,4 +318,17 @@ test('canceling a pending ChatGPT login cannot activate the subscription later',
   finish()
   await assert.rejects(attempt, /canceled/)
   assert.equal(service.settings().activeProvider, null)
+})
+
+test('Notebook drafts use distinct instructions and keep private notes out of model input', async () => {
+  const { service, calls } = fixture(() => ({ content: [{type:'text', text:'Practice draft.'}] }))
+  await service.configure({provider:'anthropic',apiKey:'fixture-key'})
+  for (const [kind, prompt] of [['studyGuides', /study guide/i], ['interviewPrep', /practice interview/i]]) {
+    assert.equal(await service.draft({...sample,kind}), 'Practice draft.')
+    const { system, messages } = calls.at(-1).body
+    assert.match(system, prompt)
+    assert.match(messages[0].content, /Example Library/)
+    assert.doesNotMatch(messages[0].content, /private-/)
+  }
+  await assert.rejects(service.draft({...sample,kind:'unknown'}))
 })

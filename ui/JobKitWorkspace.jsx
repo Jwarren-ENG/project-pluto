@@ -250,7 +250,7 @@ export default function JobKitWorkspace({ go, refresh, state }) {
           <div className="job-kit-actions">
             <select id={id + '-skill'} value={skill} disabled={Boolean(busy)} aria-describedby={id + '-hint'}
               onChange={event => { setSkill(event.target.value); setNotice('') }}>
-              {tasks.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              {tasks.filter(([value]) => value !== 'interview-prep' || state?.features?.interviewPrep).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
             {canOpenTask && <Button type="button" size="sm" disabled={Boolean(busy)} onClick={openTask}>
               {busy === 'openTask' ? 'Opening…' : 'Open task in Codex'}
@@ -260,7 +260,7 @@ export default function JobKitWorkspace({ go, refresh, state }) {
             </Button>
           </div>
           <p id={id + '-hint'}>{canCopy
-            ? 'Review the prepared task in your assistant. It uses the connected workspace, your approvals and recorded receipts.'
+            ? (skill === 'run' && !state?.features?.autoApply ? 'Auto apply is off. Your assistant will prepare drafts for review.' : 'Review the prepared task in your assistant. It uses the connected workspace, your approvals and recorded receipts.')
             : 'Connect a Job Kit workspace to copy a task for your assistant.'}</p>
         </div>
       </>}

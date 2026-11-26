@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react'
 
 import { Button } from './components/ui/button.jsx'
 import { Input } from './components/ui/input.jsx'
+import OptionalWorkflows from './OptionalWorkflows.jsx'
 import FreeFallback from './FreeFallback.jsx'
 import DriveConnection from './DriveConnection.jsx'
 import MailConnection from './MailConnection.jsx'
@@ -230,7 +231,7 @@ function AIConnection({ settings, onSettings, notify, onBusyChange, setup }) {
   const account = accounts.find(item => item.id === mode)
 
   return <section className="panel">
-    <h2>AI for drafts</h2>
+    <h2 id="ai-connections-heading" tabIndex={-1}>AI for drafts</h2>
     <p>{active ? 'Current provider: ' + settings.providers[active].label : 'Choose an account or configure an API or local model for drafting.'}</p>
     <div className="toolbar" role="group" aria-label="AI accounts">
       {accounts.map(item => <Button key={item.id} type="button" aria-pressed={mode === item.id} variant={mode === item.id ? 'default' : 'outline'}
@@ -291,23 +292,28 @@ function FirecrawlConnection({ saved, onSettings, notify }) {
   )
 }
 
-export default function Connections({ notify, go, entrySection, aiOnly = false, onBusyChange }) {
+export default function Connections({ notify, state, refresh, go, entrySection, aiOnly = false, emailOnly = false, onBusyChange }) {
   const [settings, setSettings] = useState(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   useEffect(() => {
+    if (emailOnly) return
     let current = true
     setError('')
     call('settings').then(value => { if (current) setSettings(value) }).catch(err => { if (current) setError(err.message) })
     return () => { current = false }
-  }, [attempt])
+  }, [attempt, emailOnly])
+  const [mailAccounts, setMailAccounts] = useState(null)
+  useEffect(() => { if (entrySection === 'features') document.getElementById('optional-workflows-heading')?.focus() }, [entrySection])
+  if (emailOnly) return <MailConnection notify={notify} onBusyChange={onBusyChange} />
   return <div className="section">
-    {entrySection === 'email' && <MailConnection notify={notify} go={go} focusOnOpen />}
+    {!aiOnly && state && <OptionalWorkflows state={state} settings={settings} accounts={mailAccounts} refresh={refresh} go={go}/>}
+    {entrySection === 'email' && <MailConnection notify={notify} onAccounts={setMailAccounts} focusOnOpen />}
     {settings ? <AIConnection settings={settings} onSettings={setSettings} notify={notify} onBusyChange={onBusyChange} setup={aiOnly} /> :
       error ? <section className="panel"><p role="alert">{error}</p><Button variant="outline" onClick={() => setAttempt(attempt + 1)}>Retry connections</Button></section>
       : <p role="status">Loading AI connections…</p>}
     {!aiOnly && <>
-      {entrySection !== 'email' && <MailConnection notify={notify} go={go} />}
+      {entrySection !== 'email' && <MailConnection notify={notify} onAccounts={setMailAccounts} />}
       <DriveConnection notify={notify} />
       {settings && <FirecrawlConnection saved={settings.providers.firecrawl} onSettings={setSettings} notify={notify} />}
       <FreeFallback notify={notify} />

@@ -234,7 +234,7 @@ try {
     await page.getByRole('alert').filter({ hasText: /profile changed/ }).waitFor()
     await button(page, 'Reload this step').click()
     await page.getByRole('alert').waitFor({ state: 'hidden' })
-    assert.equal(await input(page, 'Name').inputValue(), 'Imported name')
+    await page.waitForFunction(() => document.querySelector('input[autocomplete="name"]')?.value === 'Imported name')
     for (let index = 0; index < 4; index++) await button(page, 'Skip this step').click()
     await step(page, 'Plan your daily budget')
     await input(page, 'Jobs per day').fill('19')

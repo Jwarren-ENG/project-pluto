@@ -1,6 +1,7 @@
 import React, { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from './components/ui/button.jsx'
 import { Input } from './components/ui/input.jsx'
+import { claudeModels } from '../desktop/model-catalog.mjs'
 
 const orderLabels = {
   newest: 'Newest first.',
@@ -26,6 +27,8 @@ export default function ModelPicker({ provider, value, onChange, configured, api
   const editableEndpoint = provider === 'custom' || provider === 'ollama'
   const needsKey = !['ollama', 'codex', 'openrouter'].includes(provider) && !apiKey.trim() && !(configured && endpoint === savedEndpoint)
   const options = catalog?.models || []
+  const presets = provider === 'anthropic' && catalog?.source !== 'provider'
+    ? claudeModels.filter(model => !options.some(entry => entry.id === model.id)) : []
 
   async function load(explicit) {
     const request = ++generation.current
@@ -66,16 +69,21 @@ export default function ModelPicker({ provider, value, onChange, configured, api
 
   let status = catalogSummary(catalog)
   if (signedOut) status = 'Sign in to load models for your subscription.'
-  else if (needsKey) status = 'Enter your API key to load models, or enter a model ID manually.'
+  else if (needsKey) status = 'Enter your API key to load the models available to your account.'
   else if (phase === 'loading') status = 'Loading models…'
-  else if (phase === 'failed') status = 'Model list unavailable. You can enter a model ID manually.'
+  else if (phase === 'failed') status = presets.length
+    ? 'Account model list unavailable. Choose a standard Claude model or enter a model ID.'
+    : 'Model list unavailable. You can enter a model ID manually.'
   return <div>
     <label htmlFor={id}>{optional ? 'Subscription model' : 'Model'}</label>
     <select id={id} value={manual ? 'manual' : value ? 'id:' + value : ''} onChange={event => choose(event.target.value)}
       aria-describedby={status ? id + '-status' : undefined} required={!optional} disabled={disabled}>
       <option value="" disabled={!optional}>{optional ? 'Account default' : 'Choose a model'}</option>
+      {presets.length > 0 && <optgroup label="Standard Claude models">
+        {presets.map(model => <option key={model.id} value={'id:' + model.id}>{model.label}</option>)}
+      </optgroup>}
       {options.map(model => <option key={model.id} value={'id:' + model.id}>{model.label || model.id}{model.recommended ? ' · Recommended' : ''}</option>)}
-      {value && !options.some(entry => entry.id === value) && <option value={'id:' + value}>{value} · Current selection</option>}
+      {value && ![...presets, ...options].some(entry => entry.id === value) && <option value={'id:' + value}>{value} · Current selection</option>}
       <option value="manual">Enter a model ID manually</option>
     </select>
     {manual && <label>Model ID

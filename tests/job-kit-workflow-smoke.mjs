@@ -8,7 +8,7 @@ import { _electron as electron } from 'playwright'
 
 const root = await mkdtemp(path.join(tmpdir(), 'pluto-job-kit-'))
 const index = pathToFileURL(path.resolve(process.argv[2] || 'dist', 'index.html')).href
-const workspace = { existingWorkspace: true, jobs: [], notes: [], profile: {}, schedule: {} }
+const workspace = { existingWorkspace: true, features: { interviewPrep: true }, jobs: [], notes: [], profile: {}, schedule: {} }
 let app
 try {
   const entry = path.join(root, 'main.cjs')

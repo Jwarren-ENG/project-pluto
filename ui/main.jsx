@@ -1,6 +1,6 @@
 import React,{useCallback,useEffect,useLayoutEffect,useRef,useState} from 'react';
 import { createRoot } from 'react-dom/client';
-import { CalendarCheck, Search, BriefcaseBusiness, NotebookPen, Mail as MailIcon, UserRound, Cable, SlidersHorizontal, ListStart, X } from 'lucide-react';
+import { CalendarCheck, Search, BriefcaseBusiness, NotebookPen, UserRound, Cable, SlidersHorizontal, ListStart, X } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Separator } from './components/ui/separator';
 import Today from './Today.jsx';
@@ -8,18 +8,16 @@ import Applications from './Applications.jsx';
 import Notebook from './Notebook.jsx';
 import Connections from './Connections.jsx';
 import Profile from './Profile.jsx';
-import Mail from './Mail.jsx';
 import Budget from './Budget.jsx';
 import Discover from './Discover.jsx';
 import FirstRun, { initialSetup, replaySetup } from './FirstRun.jsx';
 import './style.css';
 
 const groups=[
-  [['Today',CalendarCheck],['Applications',BriefcaseBusiness],['Discover',Search],['Notebook',NotebookPen],['Mail',MailIcon]],
+  [['Today',CalendarCheck],['Applications',BriefcaseBusiness],['Discover',Search],['Notebook',NotebookPen]],
   [['Daily budget',SlidersHorizontal],['Profile',UserRound],['Connections',Cable]]
 ];
-const panels={Today,Discover,Applications,Notebook,Mail,Profile,Connections,'Daily budget':Budget};
-const viewLabel=view=>view==='Mail'?'Job mail':view;
+const panels={Today,Discover,Applications,Notebook,Profile,Connections,'Daily budget':Budget};
 
 function DiscardDialog({kind,keep,discard}){
   const dialog=useRef(null);
@@ -132,12 +130,12 @@ function App(){
     <aside className="sidebar"><div className="drag-area"/>
       <div className="brand"><img src="./pluto.jpg" alt=""/><strong>Project Pluto</strong></div>
       <nav aria-label="Workspace">{groups.map((group,i)=><React.Fragment key={i}>{i>0&&<Separator/>}{group.map(([label,Icon])=>
-        <Button variant="ghost" key={label} className="nav-item" aria-label={viewLabel(label)} aria-current={view===label?'page':undefined} onClick={()=>go(label)}><Icon size={17} strokeWidth={1.6}/><span>{viewLabel(label)}</span></Button>
+        <Button variant="ghost" key={label} className="nav-item" aria-label={label} aria-current={view===label?'page':undefined} onClick={()=>go(label)}><Icon size={17} strokeWidth={1.6}/><span>{label}</span></Button>
       )}</React.Fragment>)}<Button variant="ghost" className="nav-item" aria-label="Open setup" title="Open setup" onClick={openSetup}><ListStart size={17} strokeWidth={1.6}/><span>Open setup</span></Button></nav>
       <div className="local-mark"><span className="local-dot"/> Local workspace</div>
     </aside>
-    <main tabIndex={-1} ref={dashboard} aria-label={viewLabel(view)}><div className="window-line"><span>Workspace</span><span aria-hidden="true">/</span><strong>{viewLabel(view)}</strong></div>
-      <div className="content" key={view}>{view!=='Today'&&<header className="page-heading"><h1>{viewLabel(view)}</h1></header>}<Panel {...props}/></div>
+    <main tabIndex={-1} ref={dashboard} aria-label={view}><div className="window-line"><span>Workspace</span><span aria-hidden="true">/</span><strong>{view}</strong></div>
+      <div className="content" key={view}>{view!=='Today'&&<header className="page-heading"><h1>{view}</h1></header>}<Panel {...props}/></div>
     </main>
     {leave&&<DiscardDialog kind={leave.kind} keep={()=>setLeave(null)} discard={()=>{setLeave(null);leave.proceed();}}/>}
     {toast}

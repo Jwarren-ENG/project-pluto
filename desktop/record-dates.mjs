@@ -35,7 +35,7 @@ export function upcomingInterviews(jobs, { now = new Date(), includePending = fa
   const today = localDay(now)
   return jobs.filter(job => job.stage === 'Interview')
     .map(job => ({ job, at: recordDate(job.interviewAt) }))
-    .filter(({ at }) => at ? (at.instant ? at.instant >= now : at.day >= today) : includePending)
+    .filter(({ job, at }) => at ? (at.instant ? at.instant >= now : at.day >= today) : includePending && job.interviewStatus !== 'canceled')
     .sort((a, b) => compareRecordDates(a.at, b.at))
     .map(({ job }) => job)
 }

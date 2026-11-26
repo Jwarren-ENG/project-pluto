@@ -2,6 +2,7 @@ import {app,BrowserWindow,Menu,clipboard,dialog,ipcMain,safeStorage,session,shel
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
+import {requireFeature,hasDraftMaterial} from './workflow-features.mjs';
 import {createWorkspace} from './workspace.mjs';
 import {createConfig} from './config.mjs';
 import {createCodexSession} from './codex.mjs';
@@ -9,6 +10,7 @@ import {createProviders} from './providers.mjs';
 import {createMail} from './mail.mjs';
 import {createAppleMail} from './apple-mail.mjs';
 import {createMailRouting} from './mail-routing.mjs';
+import {createEmployerReview} from './employer-review.mjs';
 import {createJobMail} from './job-mail.mjs';
 import {createDrive} from './drive.mjs';
 import {pickGoogleSetupFile} from './google-setup-file.mjs';
@@ -139,12 +141,12 @@ async function start(){
       return next;
     },
     'jobkit.copyTask':({skill})=>{
-      clipboard.writeText(workflowTask(skill,kit.getPaths(),managed(),path.join(dir,'workspace.sqlite3')));
+      clipboard.writeText(workflowTask(skill,kit.getPaths(),managed(),path.join(dir,'workspace.sqlite3'),workspace.getFeatures()));
       return true;
     },
     'jobkit.openTask':({skill})=>{
       if(!codexAvailable())throw new Error('Install the Codex desktop app or use Copy task.');
-      const prompt=workflowTask(skill,kit.getPaths(),managed(),path.join(dir,'workspace.sqlite3'));
+      const prompt=workflowTask(skill,kit.getPaths(),managed(),path.join(dir,'workspace.sqlite3'),workspace.getFeatures());
       return shell.openExternal('codex://threads/new?prompt='+encodeURIComponent(prompt));
     },
     'jobkit.openVault':()=>shell.openExternal(vaultAddress(kit.getPaths(),managed())),
@@ -166,15 +168,52 @@ async function start(){
     'discovery.status':()=>({latest:config.prefs.get('discoveryResults'),run:config.prefs.get('discoveryRun')}),
     'application.openMaterial':p=>openArchivedMaterial(p,{getJob:jobById,workspacePath:managed()?.workspacePath || kit.getPaths().kit,openPath:file=>shell.openPath(file)}),
     'application.open':p=>openApplication(p.id),'application.pdf':p=>exportPdf(jobById(p.id)),'application.drivePdf':p=>saveDrivePdf(p),
+    'learning.draft':({kind,jobId})=>{
+      if(!['studyGuides','interviewPrep'].includes(kind))throw new Error('Choose a learning workflow.');
+      requireFeature(workspace.getFeatures(),kind);
+      const job=jobById(jobId), profile=workspace.getProfile();
+      if(!hasDraftMaterial(profile))throw new Error('Add reviewed experience in Profile before drafting.');
+      return providers.draft({kind,profile,job});
+    },
     'providers.draft':p=>providers.draft({profile:workspace.getProfile(),job:p.job}),
     'app.openExternal':p=>openExternal(p.url),'resume.pick':()=>resume.pick()
   };
   for(const action of ['settings','configure','test','disconnect','search','subscriptionStatus','models','fallbackStatus','enableFallback','disableFallback','setFallbackModel'])methods['providers.'+action]=p=>providers[action](p);
   for(const action of ['list','add','setEnabled','remove'])methods['sources.'+action]=p=>sources[action](p);
   methods['drive.importRegistration']=()=>drive.importRegistration();
-  methods['mail.scan']=p=>jobMail.scan(p);
+  const employerReview=createEmployerReview({jobMail,mail,getJob:jobById,recordUpdate:p=>{
+    requireFeature(workspace.getFeatures(),'emailCheck');
+    return workspace.recordEmployerUpdate(p);
+  }});
+  let emailRevision=0;
+  methods['workspace.saveFeature']=p=>{
+    const features=workspace.saveFeature(p);
+    if(p.key==='emailCheck' && !p.enabled){
+      emailRevision++;
+      for(const provider of ['gmail','outlook','apple'])employerReview.forget(provider);
+      jobMail.close();
+    }
+    return features;
+  };
+  function checkedMail(action){
+    return async p=>{
+      requireFeature(workspace.getFeatures(),'emailCheck');
+      const revision=emailRevision;
+      const result=await action(p);
+      if(revision!==emailRevision)throw new Error('Email checker was switched off.');
+      return result;
+    };
+  }
+  const scan=checkedMail(employerReview.scan);
+  methods['mail.scan']=p=>p.cancel===true ? jobMail.scan(p) : scan(p);
+  methods['mail.recordUpdate']=checkedMail(employerReview.review);
+  methods['mail.verificationCode']=checkedMail(jobMail.verificationCode);
   for(const action of ['settings','connect','disconnect','cancel'])methods['drive.'+action]=p=>drive[action](p);
-  for(const action of ['settings','connect','disconnect','appleAccounts'])methods['mail.'+action]=p=>mail[action](p);
+  for(const action of ['settings','appleAccounts'])methods['mail.'+action]=p=>mail[action](p);
+  for(const action of ['connect','disconnect'])methods['mail.'+action]=p=>{
+    employerReview.forget(p.provider);
+    return mail[action](p);
+  };
   for(const action of ['importVault','exportVault'])methods['workspace.'+action]=async()=>{
     const result=await dialog.showOpenDialog(win,{title:action==='exportVault'?'Choose a folder for your Obsidian export':'Choose the folder containing your Pluto vault',properties:['openDirectory','createDirectory']});
     return result.canceled?null:workspace[action](result.filePaths[0]);

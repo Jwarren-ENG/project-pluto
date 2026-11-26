@@ -177,7 +177,14 @@ async function checkConnections(app, page) {
     const api = page.getByRole('group', { name: (name === 'Claude' ? 'Anthropic' : name) + ' API' });
     await api.getByLabel('API key', { exact: true }).waitFor();
     await api.getByLabel('Model', { exact: true }).waitFor();
-    if (name !== 'Claude') {
+    if (name === 'Claude') {
+      const model = api.getByLabel('Model', { exact: true });
+      assert.equal(await model.inputValue(), 'id:claude-sonnet-5-5');
+      assert.deepEqual(await model.locator('optgroup[label="Standard Claude models"] option').allTextContents(),
+        ['Claude Sonnet 5.5', 'Claude Opus 5.5', 'Claude Haiku 5.5', 'Claude Fable 5.2']);
+      await model.selectOption({ label: 'Claude Fable 5.2' });
+      assert.equal(await model.locator('option[value="id:claude-sonnet-4-6"]').count(), 0);
+    } else {
       await api.getByLabel('API key', { exact: true }).fill('sample-catalog-key');
       await api.getByRole('button', { name: 'Load models' }).click();
       await api.getByLabel('Model', { exact: true }).selectOption({ label: 'gpt-example-new' });
@@ -270,9 +277,10 @@ async function checkConnections(app, page) {
   }
   // Simulate a Mac with a configured mailbox and a publisher-registered provider.
   await fixture.evaluate(f => { f.macMail = true; f.mail = { outlook: { direct:true } }; });
-  await page.getByRole('navigation').getByRole('button', { name:'Job mail', exact:true }).click();
-  await button('Connect an inbox').click();
-  assert.equal(await page.evaluate(() => document.activeElement?.id), 'email-connections-heading');
+  const navigation = page.getByRole('navigation');
+  assert.equal(await navigation.getByRole('button',{name:/^(job )?mail$/i}).count(),0);
+  await navigation.getByRole('button',{name:'Today',exact:true}).click();
+  await navigation.getByRole('button',{name:'Connections',exact:true}).click();
   await button('Connect Gmail').click();
   const picker = page.getByRole('dialog', {name:'Connect Gmail'});
   await picker.getByRole('button', {name:'candidate@example.test'}).click();
@@ -280,9 +288,6 @@ async function checkConnections(app, page) {
   await visible('candidate@example.test · via Apple Mail');
   await button('Connect Outlook').click();
   await button('Disconnect Outlook').waitFor();
-  await button('Open job mail').click();
-  await page.getByLabel('Mail source').waitFor();
-  assert.equal(await page.getByLabel('Mail source').locator('option').count(), 2);
   assert.deepEqual(await fixture.evaluate(f => f.calls.filter(([name]) => name === 'mail.connect')), [
     ['mail.connect', {provider:'gmail', appleAccountId:'sample-mailbox'}],
     ['mail.connect', {provider:'outlook'}],
@@ -553,7 +558,7 @@ try{
   const nav=page.getByRole('navigation');
   await page.getByRole('button',{name:'Add résumé'}).click();
   await page.getByRole('button',{name:'Choose résumé file'}).waitFor();
-  for(const title of ['Discover','Applications','Notebook','Connections','Job mail','Daily budget']){
+  for(const title of ['Discover','Applications','Notebook','Connections','Daily budget']){
     await nav.getByRole('button',{name:title,exact:true}).click();
     await page.getByRole('heading',{name:title,exact:true,level:1}).waitFor();
     if(title==='Connections'){

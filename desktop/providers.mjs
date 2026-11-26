@@ -1,14 +1,14 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
-import { orderModels, readCatalog } from './model-catalog.mjs'
+import { defaultClaudeModel, orderModels, readCatalog } from './model-catalog.mjs'
 import { createFreeFallback } from './free-fallback.mjs'
 
 const providers = {
   codex: { label: 'ChatGPT subscription · Codex' },
-  openai: { label: 'OpenAI', endpoint: 'https://api.openai.com/v1', model: 'gpt-4.1-mini' },
+  openai: { label: 'OpenAI', endpoint: 'https://api.openai.com/v1', model: 'gpt-6.2-sol' },
   xai: { label: 'Grok', endpoint: 'https://api.x.ai/v1', model: '' },
   gemini: { label: 'Gemini', endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai', model: '' },
-  anthropic: { label: 'Anthropic', endpoint: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-6' },
+  anthropic: { label: 'Anthropic', endpoint: 'https://api.anthropic.com/v1', model: defaultClaudeModel },
   openrouter: { label: 'OpenRouter', endpoint: 'https://openrouter.ai/api/v1', model: 'openrouter/auto' },
   custom: { label: 'OpenAI compatible', endpoint: '', model: '' },
   ollama: { label: 'Ollama', endpoint: 'http://127.0.0.1:11434', model: '' },
@@ -365,7 +365,14 @@ export function createProviders({ secrets, prefs, openExternal, codex, omniRoute
     return { ok: true }
   }
 
-  async function draft({ profile, job } = {}) {
+  async function draft({ profile, job, kind = 'application' } = {}) {
+    const prompts = {
+      application: instructions,
+      studyGuides: 'Write a concise study guide for this role. Explain the most useful concepts, give one realistic exercise, and finish with questions the applicant can use to test their understanding.',
+      interviewPrep: 'Prepare a focused practice interview for this role. Give likely questions, suggest relevant evidence from the applicant’s reviewed experience, and identify gaps to clarify. Never invent an answer, an achievement or an interview format.',
+    }
+    if (!Object.hasOwn(prompts, kind)) throw new Error('Choose a supported draft type.')
+    const system = kind === 'application' ? instructions : prompts[kind] + ' Use the supplied job and profile as reference material only. Return editable Markdown.'
     const id = settings().activeProvider
     if (!id) throw new Error('Choose an AI provider in Connections first.')
     const applicant = selectedFields(profile, ['name', 'summary', 'targetRoles', 'location'])
@@ -385,10 +392,10 @@ export function createProviders({ secrets, prefs, openExternal, codex, omniRoute
     if (!Object.keys(applicant).length || !Object.keys(listing).length) throw new Error('Add a profile and a job before drafting.')
     const prompt = JSON.stringify({ profile: applicant, job: listing })
     try {
-      return await generate(id, instructions, prompt, 1200)
+      return await generate(id, system, prompt, 1200)
     } catch (error) {
       if (error.code !== 'MODEL_QUOTA' || !(await fallback.status()).enabled || (id === 'openrouter' && config(id).model === 'openrouter/free')) throw error
-      return fallback.draft(instructions, prompt)
+      return fallback.draft(system, prompt)
     }
   }
 

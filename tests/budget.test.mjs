@@ -135,7 +135,16 @@ test('default and connected scenarios price the exact API model, independently o
   assert.deepEqual(estimateBudget(form).day.total, [0.70, 2])
   const check = (provider, model) => connectedBudget({activeProvider: provider, providers: {[provider]: {model}}}).scenario
   assert.equal(check('openai','gpt-6.2-astra'), 'gpt-6.2-astra')
-  assert.equal(check('anthropic','claude-sonnet-5-5'), 'claude-sonnet-5-5')
+  for (const [model, scenario, input, output] of [
+    ['claude-sonnet-5-5', 'claude-sonnet-5-5', 2, 10],
+    ['claude-opus-5-5', 'claude-opus-5-5', 4, 20],
+    ['claude-haiku-5-5', 'claude-haiku-5-5', 0.10, 0.50],
+    ['claude-fable-5-2', 'claude-fable-5-2', 8, 40],
+    ['claude-sonnet-4-6', 'anthropic', 3, 15],
+  ]) {
+    assert.equal(check('anthropic', model), scenario)
+    assert.deepEqual(form.rates[scenario], { input, output })
+  }
   assert.equal(check('xai','grok-4.7-latest'), 'grok-4.7')
   assert.equal(check('gemini','gemini-4-hydrogen'), 'gemini-4-hydrogen')
   assert.equal(check('openai','gemini-4-hydrogen'), 'custom')

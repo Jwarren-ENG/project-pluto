@@ -4,7 +4,6 @@ import { Button } from './components/ui/button'
 import { Input } from './components/ui/input'
 import { Textarea } from './components/ui/textarea'
 import { saveReviewed, suggest } from './Profile.jsx'
-import MailConnection from './MailConnection.jsx'
 import Connections from './Connections.jsx'
 import Budget from './Budget.jsx'
 import './first-run.css'
@@ -13,7 +12,7 @@ const storageKey = 'pluto.setup.v1'
 const steps = [
   ['Profile', 'Your name and résumé', 'Start with the résumé you want to use for applications. You can review and edit its text before saving.'],
   ['Preferences', 'What are you looking for?', 'Choose the roles and places you want to search. Leave a question open if you’re still deciding.'],
-  ['Email', 'Choose an inbox', 'Connect the account where you receive employer replies. You choose when to check it in Job mail.'],
+  ['Email', 'Choose an inbox', 'Connect the account you use for job applications. You can change it later in Connections.'],
   ['AI provider', 'Choose your drafting provider', 'Use an existing subscription, an API key or a model on your computer. You can also write drafts yourself.'],
   ['Budget', 'Plan your daily budget', 'Try a daily target and a pricing scenario. Saving this estimate sets your target in Today.'],
 ]
@@ -240,7 +239,7 @@ export default function FirstRun({ initial, state, refresh, notify, onExit }) {
           <fieldset className="setup-fields" disabled={busy} aria-label={title}>
             {step === 0 && <Identity {...{ value, edit, run, connectKit, disabled }} />}
             {step === 1 && <Preferences {...{ value, edit }} />}
-            {step === 2 && <MailConnection notify={notify} onBusyChange={setConnectionBusy} />}
+            {step === 2 && <Connections emailOnly notify={notify} onBusyChange={setConnectionBusy} />}
             {step === 3 && <Connections aiOnly notify={notify} onBusyChange={setConnectionBusy} />}
             {step === 4 && <Budget state={state} refresh={refresh} notify={notify} setup={budgetSetup} />}
           </fieldset>

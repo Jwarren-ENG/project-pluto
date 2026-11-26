@@ -4,6 +4,7 @@ import { Input } from './components/ui/input'
 import { Textarea } from './components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table'
 import { formatRecordDate, recordDate, validDay } from '../desktop/record-dates.mjs'
+import EmployerUpdates from './Mail.jsx'
 import { isRecordedPdf } from '../desktop/recorded-material.mjs'
 
 const stages = ['Saved', 'Preparing', 'Applied', 'Interview', 'Offer', 'Closed']
@@ -96,7 +97,9 @@ function JobEditor({ initial, state, refresh, notify, close, reportEditor, reque
   const stale = latest && latest.updatedAt !== base.updatedAt
   const hasChanges = JSON.stringify(form) !== JSON.stringify(editable(base))
   const dirty = hasChanges || suggestion !== null
+  const dirtyRef = useRef(dirty)
   useLayoutEffect(() => {
+    dirtyRef.current = dirty
     const working = busy === 'Saving' ? 'Saving your application…' : busy === 'Drafting' ? 'Finishing your draft…' : null
     reportEditor({ kind: 'application', dirty, working })
     return () => reportEditor(null)
@@ -111,6 +114,12 @@ function JobEditor({ initial, state, refresh, notify, close, reportEditor, reque
     setForm(editable(saved))
     setSuggestion(null)
     setError('')
+  }
+
+  async function refreshAfterUpdate() {
+    const snapshot = await refresh()
+    const saved = snapshot?.jobs?.find(job => job.id === base.id)
+    if (saved && !dirtyRef.current && !running.current) load(saved)
   }
 
   async function run(name, fn) {
@@ -182,13 +191,14 @@ function JobEditor({ initial, state, refresh, notify, close, reportEditor, reque
     <Input {...options} aria-label={label} value={form[key]} disabled={!!busy} onChange={e => change(key, e.target.value)} />
   </label>
   return <div className="stack">
+    <header className="section-heading pb-4">
+      <h2>{base.id ? base.title : 'New application'}</h2>
+      <Button type="button" variant="ghost" size="sm" disabled={!!busy} onClick={() => requestLeave(close)}>
+        Close
+      </Button>
+    </header>
+    {latest && <EmployerUpdates state={state} activeJob={latest} refresh={refreshAfterUpdate}/>}
     <form className="stack" onSubmit={save}>
-      <header className="section-heading pb-4">
-        <h2>{base.id ? base.title : 'New application'}</h2>
-        <Button type="button" variant="ghost" size="sm" disabled={!!busy} onClick={() => requestLeave(close)}>
-          Close
-        </Button>
-      </header>
       <section className="space-y-3 border-t py-5" aria-labelledby="role-details-heading">
         <div className="section-heading"><h3 id="role-details-heading">Role details</h3>
           <Button type="button" variant="outline" size="sm" onClick={openEmployer}
@@ -259,7 +269,7 @@ function JobEditor({ initial, state, refresh, notify, close, reportEditor, reque
   </div>
 }
 
-export default function Applications({ state, notify, refresh, seed, setSeed, reportEditor, requestLeave }) {
+export default function Applications({ state, notify, refresh, seed, setSeed, reportEditor, requestLeave, go }) {
   const [filter, setFilter] = useState('')
   const returnTo = useRef(null)
   useEffect(() => {
@@ -287,6 +297,7 @@ export default function Applications({ state, notify, refresh, seed, setSeed, re
         value={filter} onChange={e => setFilter(e.target.value)} /> : <h2>Tracked roles</h2>}
       <Button id="add-role" type="button" size="sm" onClick={() => open({}, 'add-role')}>Add role</Button>
     </div>
+    <EmployerUpdates state={state} refresh={refresh} go={go}/>
     <Table aria-label="Applications" className="max-sm:table-fixed max-sm:[&_td]:px-1.5 max-sm:[&_th]:px-1.5">
       <TableHeader><TableRow>
         <TableHead scope="col" className="max-sm:w-[29%]">Company</TableHead>

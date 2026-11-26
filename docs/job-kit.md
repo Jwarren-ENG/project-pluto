@@ -32,6 +32,8 @@ The adapter owns local preferences under `jobKit.`. Main reads its separate `job
 
 Main can call the synchronous `jobKit.getPaths()` for a user initiated copy task or folder open. It returns `{kit, vault}` with a verified directory path or null for each source. Keep this method inside main. A moved, unavailable or replaced directory requires a fresh selection before it can be opened.
 
+A task opened from Today carries the optional workflows selected in Connections. A search prepares drafts when Auto apply is off. Before submitting, the assistant rechecks Pluto’s switch, your saved daily target, the kit’s submission permissions and remaining capacity. Email checking and interview prep have separate switches.
+
 ## Supported files and evidence
 
 | Source | Contents copied into Notebook |

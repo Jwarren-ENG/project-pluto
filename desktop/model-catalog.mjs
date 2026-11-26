@@ -1,3 +1,11 @@
+export const defaultClaudeModel = 'claude-sonnet-5-5'
+export const claudeModels = [
+  { id: defaultClaudeModel, label: 'Claude Sonnet 5.5' },
+  { id: 'claude-opus-5-5', label: 'Claude Opus 5.5' },
+  { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5' },
+  { id: 'claude-fable-5-2', label: 'Claude Fable 5.2' },
+]
+
 // Providers use seconds, ISO dates, or no date at all. Keep undated entries in
 // their original order, which also preserves Codex's account-specific ranking.
 function publishedTime(value) {

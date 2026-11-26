@@ -1,5 +1,21 @@
 # Workspace storage and notebook
 
+## Using Notebook
+
+Open **Notebook** from the sidebar or **Open notebook** on Today. Search for a note by its title, Markdown text, company or role. Select its title to read or edit it. Long notes scroll inside the Markdown field. When a note has a linked source, **Open original note in Obsidian** opens that page.
+
+Choose **New note** to start with a blank page. Give it a title, select a linked application or leave it as **General note**, and choose **Save note**. If a tracker refreshes a note while you are reading it, the editor shows the latest saved text. If you have local edits, Pluto keeps them in the form and asks you to resolve the newer version before saving. **Keep editing** returns to your draft. **Discard edits and load saved version** lets you review the tracker’s copy.
+
+### Study guides and interview prep
+
+Use **Manage in Connections** to open **Optional workflows**. **Study guides** and **Interview prep** have independent switches. Both start off. Your existing notes and manual editor are available with either setting.
+
+To draft a preparation note, configure a drafting provider and review your experience in **Profile**. In **Notebook**, select a **Tracked role** and choose **Draft study guide** or **Draft interview prep**. That click sends the selected role and the profile material eligible for drafting to your configured provider. Your model allowance or API pricing applies.
+
+The result opens as an unsaved note linked to the selected role. Review the Markdown, change the title or text, then choose **Save note**. To dismiss the draft, choose **Close** and **Discard changes**. A saved guide or interview note remains editable after you switch its workflow off.
+
+## Local storage
+
 Call `createWorkspace(directory)` from the main process. A workspace uses the bundled SQLite engine and stores its data in `workspace.sqlite3`. Each save runs in one transaction. Multiple workspace handles can use the same directory. For a complete backup, close the application and copy its workspace directory.
 
 ## Reading and saving
@@ -35,4 +51,6 @@ Applications and Notebook are default exports. Both accept the shared state, ref
 
 The employer and PDF buttons call application.open and application.pdf with the saved job ID. Save changes to the relevant URL or reviewed résumé before using its button. Draft with AI sends the reviewed profile fields and role details only on a click. A generated replacement is shown beside the current draft for review.
 
-Notebook saves local Markdown and an optional job link. Its import and export buttons use the directory picker provided by main. It displays counts, preserved paths and individual conflicts from the workspace service. Both panels fit the existing preload actions.
+Notebook reads the study guide and interview prep switches from `state.features`. An explicit generation request calls `learning.draft` with the selected kind and saved job ID. Main checks the switch and reviewed profile material, resolves the job, and returns Markdown from the configured provider. **Save note** uses the ordinary workspace save path.
+
+Run `node tests/notebook-desktop.mjs` from a built checkout to exercise the native Notebook with a disposable managed note, Obsidian folder and local model fixture.

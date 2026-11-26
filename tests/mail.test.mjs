@@ -2,9 +2,6 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import http from 'node:http'
-import { mkdtemp, rm } from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
 import { createMail } from '../desktop/mail.mjs'
 
 const google = { provider: 'gmail', clientId: 'fixture.apps.googleusercontent.com', clientSecret: 'fixture-registration' }
@@ -177,42 +174,6 @@ test('a missing grant or reduced Outlook scope cannot create a connected account
     assert.equal(f.calls.length, 1)
     assert.equal(f.store.size, 0)
   }
-})
-
-test('review saves one stable note on the chosen job in the actual workspace', async t => {
-  const { createWorkspace } = await import('../desktop/workspace.mjs')
-  const { createServer } = await import('vite')
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'pluto-mail-fixture-'))
-  const workspace = createWorkspace(dir)
-  let server
-  t.after(async () => { await server?.close(); workspace.close(); await rm(dir, { recursive: true, force: true }) })
-  server = await createServer({ cacheDir: path.join(dir, 'vite'), logLevel: 'silent',
-    server: { middlewareMode: true, hmr: false, watch: null }, optimizeDeps: { noDiscovery: true } })
-  const { linkReviewedReply } = await server.ssrLoadModule('/ui/Mail.jsx')
-  const one = workspace.saveJob({ company: 'Acme', title: 'Product', url: 'https://one.example' })
-  const two = workspace.saveJob({ company: 'Acme', title: 'Deployment', url: 'https://two.example' })
-  const message = { provider: 'gmail', account: email, from: 'jobs@example.test', subject: 'Next steps',
-    preview: 'Private fixture excerpt', key: 'scoped-fixture', url: 'https://mail.google.com/example', receivedAt: '' }
-  const ws = (action, payload) => {
-    if (action === 'workspace.snapshot') return workspace.snapshot()
-    assert.equal(action, 'workspace.saveNote')
-    return workspace.saveNote(payload)
-  }
-  assert.equal(await linkReviewedReply({ job: two, message }, ws), true)
-  let { notes, jobs } = workspace.snapshot()
-  assert.equal(notes.length, 1)
-  assert.equal(notes[0].jobId, two.id)
-  assert.doesNotMatch(notes[0].body, /Private fixture excerpt/)
-  assert.match(notes[0].body, /Next steps/)
-  assert.match(notes[0].body, /https:\/\/mail.google.com\/example/)
-  assert.deepEqual(jobs.find(j => j.id === two.id), two)
-  workspace.saveNote({ ...notes[0], body: 'User edited this note.' })
-  assert.equal(await linkReviewedReply({ job: two, message, includePreview: true }, ws), false)
-  assert.equal(workspace.snapshot().notes[0].body, 'User edited this note.')
-  assert.equal(await linkReviewedReply({ job: one, message, includePreview: true }, ws), true)
-  assert.match(workspace.snapshot().notes.find(n => n.jobId === one.id).body, /Private fixture excerpt/)
-  await assert.rejects(linkReviewedReply({ job: { ...one, title: 'Stale title' }, message }, ws), /tracked job changed/)
-  assert.equal(workspace.snapshot().notes.length, 2)
 })
 
 test('publisher registrations open permission directly and stay in the main process', async () => {

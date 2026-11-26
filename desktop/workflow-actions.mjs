@@ -1,3 +1,4 @@
+import { requireFeature } from './workflow-features.mjs'
 import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile, rename, rm } from 'node:fs/promises'
 import path from 'node:path'
@@ -16,8 +17,9 @@ export function managedSummary(settings) {
   }
 }
 
-export function workflowTask(skill, folders, managed, desktopDatabase) {
+export function workflowTask(skill, folders, managed, desktopDatabase, features = {}) {
   if (!Object.hasOwn(tasks, skill)) throw new Error('Choose a Job Kit task.')
+  if (skill === 'interview-prep') requireFeature(features, 'interviewPrep')
   const workspace = folders.kit || managed?.workspacePath
   if (!workspace) throw new Error('Connect a private job workspace first.')
   const vault = folders.vault || managed?.vaultPath
@@ -30,6 +32,12 @@ export function workflowTask(skill, folders, managed, desktopDatabase) {
     'Follow the installed job workflow for this task. Skill reference ' + JSON.stringify(instructions) + '.',
     'Read my current profile, permission choices, schedule, active run locks and existing evidence before acting. Use the same tracker and identifiers as my other runs. Leave unresolved facts for me to answer.',
     desktopDatabase && 'Also check the connected Project Pluto database ' + JSON.stringify(desktopDatabase) + ' in read-only mode. Its jobs, submissions and events tables contain the dashboard’s local edits and immutable receipts. Compare matching roles, preserve both sources when they disagree and resolve any submission uncertainty before retrying. Record confirmed outcomes in the existing tracker so the next refresh can bring them back into Pluto.',
+    skill === 'run' && (features.autoApply === true && desktopDatabase
+      ? 'Auto apply is enabled for this dashboard task. Before each submission, read optionalWorkflows from the settings table of the linked database and verify autoApply is still true. Require the existing Job Kit submission permission, confirmed facts, an eligible role and remaining capacity under both the Job Kit cap and the saved daily target in the linked profile budget. A missing or zero target means prepare drafts only. If any check fails, stop at a draft.'
+      : 'Prepare drafts only. Auto apply is off for this task. Do not submit any applications.'),
+    features.emailCheck === true && desktopDatabase
+      ? 'Before each mailbox access verify optionalWorkflows.emailCheck is still true in the linked database and the account is permitted. Only check role-specific verification codes, receipts and interview scheduling.'
+      : 'Email checker is off for this task. Do not access any mailbox. Use recorded evidence only.',
     'Count a submission only with a role-matched receipt or my explicit confirmation. Preserve uncertain submissions and previous outcomes.',
     vault && 'Update my connected Obsidian vault at ' + JSON.stringify(vault) + ' if my current permissions allow it.',
   ].filter(Boolean).join('\n\n')

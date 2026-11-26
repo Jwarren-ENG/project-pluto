@@ -6,7 +6,7 @@ On a Mac without a provider registration, the same button opens the Apple Mail a
 
 On Windows, a distribution without a provider registration asks for a desktop client ID from its administrator. The sections below explain how to configure one for everyone who installs the app. Email permission is independent of the AI subscription used for drafting.
 
-**Job mail** shows recruiting messages matched against jobs you track. Open the tab, choose a connected mailbox, and check your tracked jobs. Review a match before linking it to an application. Linking saves a local note and preserves the job’s current stage and receipt.
+Email setup is in **Connections → Email**. In **Applications**, review submission receipts and interview scheduling updates against the role they belong to. For an application asking for an email verification code, open that role and request its recent code. Codes stay out of notes, submission receipts and interview history.
 
 ## Set up one click sign-in for a distribution
 
@@ -45,3 +45,5 @@ Refresh credentials, account metadata and any Google desktop client secret share
 From the project root, run `node --test tests/mail.test.mjs`. The tests use synthetic accounts and provider responses. They exercise real ephemeral loopback callbacks, both provider flows, PKCE, cancellation, secure storage boundaries, read-only searches, token rotation, and reviewed linking against a temporary local workspace. No mailbox credentials are required.
 
 [Gmail message list](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list) · [Microsoft Graph message search](https://learn.microsoft.com/en-us/graph/search-query-parameter#use-search-on-message-collections)
+
+Turn on **Email checker** under **Connections → Optional workflows** to use these actions. Switching it off keeps the linked account and stops further mailbox checks from Pluto.

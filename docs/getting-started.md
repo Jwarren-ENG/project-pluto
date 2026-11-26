@@ -1,6 +1,6 @@
 # Getting started with Project Pluto
 
-This guide shows **Project Pluto v0.2.5**. Older GitHub installers may show different screens.
+This guide shows **Project Pluto v0.2.6**. Older GitHub installers may show different screens.
 
 This walkthrough takes you from an empty workspace to a saved employer receipt. The screenshots follow a fictional applicant tracking an Inventory Analyst opening at Harborline Books. You can follow along with a real posting and leave it at **Saved** until you’re ready to apply.
 
@@ -13,7 +13,7 @@ Launch **Project Pluto** on your Mac or Windows computer. A new workspace opens 
 If you already keep your applications in a job kit folder, choose **Connect existing job kit** on this first screen to import it. Existing Pluto workspaces open directly in **Today**. Choose **Open setup** in the sidebar to revisit any step.
 
 1. In **Preferences**, enter your target roles, preferred locations and availability. Choose **Save and continue**.
-2. In **Email**, choose an inbox to connect or continue without one. You can check for employer replies later in **Job mail**.
+2. In **Email**, choose an inbox to connect or continue without one. The setup step uses the same email settings as **Connections → Email**.
 3. In **AI provider**, choose your subscription or configure an API or local model. An account sign-in and the choice of provider for drafts are separate actions. The provider controls show which action is available on your computer.
 4. In **Budget**, change **Jobs per day** or **Pricing scenario** to see the estimate update. Choose **Save budget and open Today** to keep it, or **Skip this step** to leave your budget as it is.
 
@@ -63,11 +63,11 @@ Open **Submitted copy** to see the receipt and the résumé and draft saved with
 
 ## 6. Check recruiting email (optional)
 
-In **Job mail**, choose **Connect an inbox**, then select **Connect Gmail** or **Connect Outlook** under **Email**. Follow the permission prompt or, on a Mac, choose the account offered through Apple Mail. If your copy asks for a desktop client ID, see the [mailbox setup guide](mail.md).
+In **Connections**, select **Connect Gmail** or **Connect Outlook** under **Email**. Follow the permission prompt or, on a Mac, choose the account offered through Apple Mail. If your copy asks for a desktop client ID, see the [mailbox setup guide](mail.md).
 
 ![Connect Gmail showing a sample inbox available through Apple Mail.](images/gmail-mailbox-picker.png)
 
-If you used the Mac picker, look for your address followed by **via Apple Mail** under **Email**. Return to **Job mail**, select the mailbox and tracked job, then choose **Check for replies**. Open a matching subject, confirm the employer and role, and choose **Link reply to this job** to save a note. If the message confirms submission, record its evidence in the role under **Application status**.
+If you used the Mac picker, look for your address followed by **via Apple Mail** under **Email**. Open the relevant role in **Applications** to check its verification code, receipt or interview update.
 
 ## 7. Set a daily target (optional)
 
@@ -78,3 +78,18 @@ In this example, a target of 100 jobs per day gives 1,500 jobs **Through day 15*
 ![GPT-6.2 Sol at 100 jobs per day. Day 15 shows 1,500 jobs and an estimated $10.50 to $30.00.](images/day-15-forecast.png)
 
 To save a reviewed résumé to Google Drive, open **Connections → Google Drive**. A configured copy opens Google in your browser so you can choose your account. [Connect Google Drive with pictures](drive.md)
+
+## Choose optional workflows
+
+Open **Connections → Optional workflows**. Each switch starts off. Turning one on opens its requirements. Follow its links to connect a provider or mailbox, review your profile, or set a daily application target.
+
+![Connections with Interview prep turned on, showing links for its AI provider, profile and tracked role.](images/optional-workflows.png)
+
+| Switch | What turning it on allows |
+| --- | --- |
+| Study guides | Open Notebook, choose a tracked role and generate an editable guide. |
+| Interview prep | Generate role specific practice material in Notebook or prepare for a confirmed interview with the Job Kit on Today. |
+| Email checker | From Applications, check for a tracked role’s verification code, submission receipt or interview scheduling message. |
+| Auto apply | Start a search from Today and let the connected Job Kit submit within its existing permissions and daily limits. |
+
+Connecting an account and turning on a workflow are separate choices. Enabling a switch alone uses no model tokens and starts no application run. Study guides and interview practice use the selected model when you request generation. Their usage is additional to the per-job budget forecast. Previously saved notes remain available when either switch is off.
