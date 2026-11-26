@@ -1,10 +1,18 @@
 # Project Pluto
 
-Project Pluto brings the #LOCKEDIN Job Kit tracker and your optional Obsidian notebook into one local dashboard for macOS and Windows. Open Today to follow interviews, review receipts, and continue a search from the private workspace you already use. [Connecting an existing workspace](docs/job-kit.md)
-
-Install Codex on the same computer, then choose **Connections → AI for drafts → ChatGPT subscription · Codex**. Select **Use subscription for drafts** to reuse a sign-in, or **Sign in with ChatGPT** to open the official browser login. Drafts use your ChatGPT plan’s Codex access and usage limits. [Setup guide](docs/providers.md) · [Codex CLI installation](https://developers.openai.com/codex/cli/)
+Project Pluto is a local job search dashboard for macOS and Windows that works with **Claude** and **ChatGPT via Codex**. It brings your #LOCKEDIN Job Kit tracker and optional Obsidian notebook into one place. Open Today to follow interviews, review receipts, and pick up your search. [Connecting an existing workspace](docs/job-kit.md)
 
 [Download the desktop app](https://github.com/Jwarren-ENG/project-pluto/releases/latest) · [Getting started with pictures](docs/getting-started.md) · [Installation guide](docs/install.md) · [License](LICENSE)
+
+## Use Claude or Codex
+
+| How you want to work | Where to start |
+| --- | --- |
+| Draft in Pluto with **Claude** | Open **Connections → AI for drafts → Claude**. Enter your Anthropic API key, choose a Claude model, and select **Use for drafts**. Anthropic bills these drafts to your API account. [Claude setup](docs/providers.md#draft-with-claude) |
+| Work in **Claude Code** with your existing Job Kit | Under **Today → Job Kit workflow**, choose **Show workflow** and connect your kit folder. Select a task, choose **Copy task**, and paste it into Claude Code with access to that folder. This uses your Claude Code session. [Job Kit walkthrough](docs/job-kit.md) |
+| Draft in Pluto with **ChatGPT via Codex** | Install the Codex CLI, then open **Connections → AI for drafts → ChatGPT**. Choose **Use subscription for drafts** if you’re already signed in, or **Sign in with ChatGPT**. [Codex setup](docs/providers.md#draft-with-a-chatgpt-subscription) |
+
+Prefer Claude in your browser? Paste the starter into a private Claude chat, then upload your résumé when prompted. [Job Kit chat starter](https://github.com/Jwarren-ENG/lockedin-job-kit/blob/main/CHAT_STARTER.txt)
 
 ![The Today view with fictional application records and an upcoming interview](docs/preview.png)
 
@@ -24,7 +32,7 @@ Open **Connections → Optional workflows** to turn on study guides, interview p
 
 | To do this | Open |
 | --- | --- |
-| Draft with a ChatGPT subscription, a developer API key, OpenRouter or local Ollama | [AI providers and search](docs/providers.md) |
+| Draft with Claude via the Anthropic API, ChatGPT via Codex, another API provider, or local Ollama | [AI providers and search](docs/providers.md) |
 | Review relevant Gmail or Outlook replies and associate one with an application | [Mail setup](docs/mail.md) |
 | Save a reviewed résumé PDF to your Google Drive | [Google Drive setup](docs/drive.md) |
 | Keep Markdown notes or exchange them with an optional Obsidian vault | [Workspace and vault](docs/workspace.md) |
@@ -35,7 +43,7 @@ If your primary provider reaches its quota, you can opt into a fallback through 
 
 On first launch, you can connect an existing job kit or start with a new profile. It keeps your records in the current operating system user's application data directory. API credentials use operating system protected encryption. Your résumé, job records and notes are stored locally in a database. A vault export creates readable Markdown files in the folder you choose. Select a private folder if your materials contain personal information.
 
-Hosted API requests, OpenRouter inference and Firecrawl searches use their respective accounts and billing. Anthropic supports API keys only. Local Ollama has a $0 hosted model fee. The app can also track applications and notes without a provider.
+Hosted API requests, OpenRouter inference and Firecrawl searches use their respective accounts and billing. Local Ollama has a $0 hosted model fee. The app can also track applications and notes without a provider.
 
 ## Run from source
 

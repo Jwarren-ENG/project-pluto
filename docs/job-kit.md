@@ -6,7 +6,7 @@ Open **Today → Job Kit workflow → Show workflow**. Choose **Connect kit** an
 
 Open **Applications** to see roles and recorded submissions, or **Notebook** to read evidence and interview notes. A scheduled interview appears on Today. Use **Sync from sources** after your assistant updates the tracker. A managed local tracker also shows the last time its background refresh finished. If you changed an imported note in Pluto, the next sync preserves that edit.
 
-Choose a task to run a search, review employer replies or prepare for an interview. **Open task in Codex** opens a composer in the installed desktop app with your task and private workspace already filled in. Review it and press Send there. **Copy task** gives you the same instructions for another assistant with access to those folders. The task includes the local dashboard database so the assistant can check your latest edits and receipts before retrying a role. Your existing assistant handles employer forms and uses the permissions saved with the kit. Connecting a folder or opening Today does not start a submission.
+Choose a task to run a search, review employer replies or prepare for an interview. **Open task in Codex** opens a composer in the installed desktop app with your task and private workspace already filled in. Review it and press Send there. For **Claude Code**, choose **Copy task**, open Claude Code with access to your connected workspace, and paste the instructions. The task includes the local dashboard database so the assistant can check your latest edits and receipts before retrying a role. Your existing assistant handles employer forms and uses the permissions saved with the kit. Connecting a folder or opening Today does not start a submission.
 
 ## Desktop contract
 

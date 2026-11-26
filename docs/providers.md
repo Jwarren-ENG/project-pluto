@@ -1,12 +1,20 @@
 # Provider connections
 
+## Draft with Claude
+
+1. In **Connections → AI for drafts**, choose **Claude**.
+2. Enter your **Anthropic API key**, choose a model available to your account, and select **Use for drafts**.
+3. Open a saved role in **Applications** and select **Draft with AI**. Anthropic bills the request to the API account for that key.
+
+If you already work in Claude Code, you can also copy a Job Kit task from Pluto and run it in your own Claude Code session. That workflow requires access to your connected kit folder and works without entering an Anthropic key in Pluto. [Job Kit walkthrough](job-kit.md)
+
 ## Draft with a ChatGPT subscription
 
 1. Install the official Codex CLI on the computer running Pluto. Check the installation with `codex --version`. [Codex CLI installation](https://developers.openai.com/codex/cli/)
-2. In **Connections → AI for drafts**, select **ChatGPT subscription · Codex**. Select **Use subscription for drafts** if Codex is already signed in. Otherwise, select **Sign in with ChatGPT** and complete the official browser login. If Codex reports a different login method, switch to ChatGPT in Codex and select **Refresh status**. Codex manages the credentials. [OpenAI sign-in guide](https://developers.openai.com/codex/auth/)
+2. In **Connections → AI for drafts**, select **ChatGPT**. Select **Use subscription for drafts** if Codex is already signed in. Otherwise, select **Sign in with ChatGPT** and complete the official browser login. If Codex reports a different login method, switch to ChatGPT in Codex and select **Refresh status**. Codex manages the credentials. [OpenAI sign-in guide](https://developers.openai.com/codex/auth/)
 3. With Codex selected for drafts, open a saved role in **Applications** and select **Draft with AI**. Review the text before using it. Access and usage are governed by your ChatGPT plan’s Codex limits. [Codex plan access and limits](https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan)
 
-A new **Daily budget** starts with estimated subscription workload when this connection is active. The planner lets you model tool charges separately. OpenAI and Anthropic API requests, OpenRouter inference and Firecrawl searches each use their own account billing. Pluto’s Anthropic integration requires an API key. [Budget planner](budget.md)
+A new **Daily budget** starts with estimated subscription workload when this connection is active. The planner lets you model tool charges separately. OpenAI and Anthropic API requests, OpenRouter inference and Firecrawl searches each use their own account billing. [Budget planner](budget.md)
 
 ## Other connections
 
