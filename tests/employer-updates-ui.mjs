@@ -45,7 +45,7 @@ try {
   const jobMail = createJobMail({ mail, getJobs: jobs, now: () => mailboxTime })
   const service = createEmployerReview({ mail, jobMail, getJob: saved, recordUpdate: input => workspace.recordEmployerUpdate(input) })
   const entry = path.join(root, 'main.cjs')
-  await writeFile(entry, "const {app,BrowserWindow}=require('electron');let w;app.whenReady().then(()=>{w=new BrowserWindow({show:false});w.loadURL('about:blank')})")
+  await writeFile(entry, "const {app,BrowserWindow}=require('electron');let w;app.whenReady().then(()=>{w=new BrowserWindow({show:false,webPreferences:{backgroundThrottling:false}});w.loadURL('about:blank')})")
   app = await electron.launch({ args: ['--user-data-dir=' + path.join(root, 'user'), entry] })
   const page = await app.firstWindow()
   page.setDefaultTimeout(6000)
@@ -177,9 +177,14 @@ try {
   await expand()
   await check.waitFor()
   assert.equal(await codeAction.count(), 0)
-  await expand()
-  await check.waitFor({state:'detached'})
+  // Account changes happen in Connections. Reopen the role as a user would
+  // after disconnecting a mailbox, so it reads fresh connection metadata.
+  await button('Close').click()
+  await button('Today').click()
+  await page.getByRole('heading', {name:'Today', exact:true}).waitFor()
   accounts = []
+  await button('Applications').click()
+  await openRole(other)
   await expand()
   await page.getByText('No mail source configured for employer updates.').waitFor()
   assert.equal(await check.count(), 0)
