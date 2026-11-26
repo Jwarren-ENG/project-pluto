@@ -174,6 +174,7 @@ try {
   await check.waitFor()
   assert.equal(await codeAction.count(), 0)
   await expand()
+  await check.waitFor({state:'detached'})
   accounts = []
   await expand()
   await page.getByText('No mail source configured for employer updates.').waitFor()
