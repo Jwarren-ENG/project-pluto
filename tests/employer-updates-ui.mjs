@@ -32,16 +32,17 @@ try {
   }))
   rows.push({ key: 'other', subject: 'Interview invitation for Editor', from: 'Careers at Example Press' })
   const token = '018527'
-  let codeAge = 1000
+  const codeAge = 1000
+  let mailboxTime = Date.now()
   let accounts = [{ provider: 'gmail', email: 'fixture@example.test' }, { provider: 'outlook', email: 'other@example.test' }]
   const mail = {
     settings: () => accounts,
     scan: ({provider}) => [...rows, {
       key: 'portal', from: 'Recruiting <no-reply@example.test>', subject: 'Example Bank candidate portal verification code',
-      preview: 'Your verification code is ' + token, receivedAt: new Date(Date.now() - codeAge).toISOString(),
+      preview: 'Your verification code is ' + token, receivedAt: new Date(mailboxTime - codeAge).toISOString(),
     }].map(row => ({ ...row, provider, account: accounts.find(a => a.provider === provider).email })),
   }
-  const jobMail = createJobMail({ mail, getJobs: jobs })
+  const jobMail = createJobMail({ mail, getJobs: jobs, now: () => mailboxTime })
   const service = createEmployerReview({ mail, jobMail, getJob: saved, recordUpdate: input => workspace.recordEmployerUpdate(input) })
   const entry = path.join(root, 'main.cjs')
   await writeFile(entry, "const {app,BrowserWindow}=require('electron');let w;app.whenReady().then(()=>{w=new BrowserWindow({show:false});w.loadURL('about:blank')})")
@@ -150,17 +151,20 @@ try {
   await page.getByText('Already linked to this role.').waitFor()
   assert.deepEqual(saved(job.id).history, history)
   assert.deepEqual(payloads('mail.verificationCode'), [])
+  mailboxTime = Date.now()
+  await page.clock.setFixedTime(new Date(mailboxTime))
   await lookup()
   const request = payloads('mail.verificationCode')[0]
   assert.deepEqual(request, { provider:'gmail', jobId:job.id, requestedAt:request.requestedAt })
-  assert.ok(Math.abs(Date.now() - Date.parse(request.requestedAt)) < 60_000)
+  assert.equal(Date.parse(request.requestedAt), mailboxTime)
   await page.getByLabel('Update source').selectOption('outlook')
   assert.equal(await page.getByText(token, {exact:true}).count(), 0)
-  codeAge = 598000
   await lookup()
+  mailboxTime += 10 * 60_000
+  await page.clock.setFixedTime(new Date(mailboxTime))
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
   await page.getByText('Verification code expired.').waitFor()
   assert.equal(await page.getByText(token, {exact:true}).count(), 0)
-  codeAge = 1000
   await lookup()
   await refreshFeature({emailCheck:false})
   await codeAction.waitFor({state:'detached'})
