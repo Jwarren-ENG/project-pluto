@@ -1,4 +1,4 @@
-import { enterFixtureWorkspace } from './setup-fixture.mjs'
+import { enterFixtureWorkspace, fixtureEnvironment } from './setup-fixture.mjs'
 // Run from a built checkout with node tests/profile-depth-smoke.mjs.
 // Set PLUTO_SMOKE_EXECUTABLE to test a packaged app. PLUTO_PROFILE_SCREENSHOT saves the guide image.
 import assert from 'node:assert/strict'
@@ -33,15 +33,12 @@ async function desktop(userData, run, previous) {
   // Only the workspace checkpoint crosses launches. Connections and OS settings start fresh.
   if (previous) await copyFile(path.join(previous, 'workspace.sqlite3'), path.join(userData, 'workspace.sqlite3'))
   const executablePath = process.env.PLUTO_SMOKE_EXECUTABLE && path.resolve(process.env.PLUTO_SMOKE_EXECUTABLE)
-  const system = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
-    /^(PATH|SystemRoot|WINDIR|LANG|LC_ALL|DISPLAY|WAYLAND_DISPLAY|XAUTHORITY|XDG_RUNTIME_DIR|DBUS_SESSION_BUS_ADDRESS)$/i.test(key)))
   const app = await electron.launch({
     executablePath,
     args: ['--user-data-dir=' + userData, '--disable-background-networking', '--disable-sync',
       '--disable-component-update', '--host-resolver-rules=MAP * ~NOTFOUND', ...(executablePath ? [] : ['.'])],
-    env: { ...system, HOME: home, USERPROFILE: home, APPDATA: home, LOCALAPPDATA: home,
-      XDG_CONFIG_HOME: home, XDG_DATA_HOME: home, XDG_CACHE_HOME: home, CODEX_HOME: home,
-      TEMP: home, TMP: home, TMPDIR: home },
+    env: fixtureEnvironment(home),
+    ...(executablePath && { cwd: home }),
     timeout: 45_000,
   })
   try {

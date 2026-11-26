@@ -1,3 +1,4 @@
+import { fixtureEnvironment } from './setup-fixture.mjs'
 // Run against a built checkout: node tests/onboarding-desktop.mjs
 // PLUTO_ONBOARDING_APP can point to an isolated test build with the same Electron entry.
 // PLUTO_SETUP_SCREENSHOT=docs/images/setup-welcome.png captures the fresh welcome screen.
@@ -26,15 +27,12 @@ async function desktop(folder, run) {
   const data = path.join(root, folder)
   const home = path.join(data, 'home')
   await mkdir(home, { recursive: true })
-  const system = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
-    /^(PATH|SystemRoot|WINDIR|LANG|LC_ALL|DISPLAY|WAYLAND_DISPLAY|XAUTHORITY|XDG_RUNTIME_DIR|DBUS_SESSION_BUS_ADDRESS)$/i.test(key)))
   const app = await electron.launch({
     executablePath,
     args: ['--user-data-dir=' + data, '--disable-background-networking', '--disable-sync',
       '--disable-component-update', '--host-resolver-rules=MAP * ~NOTFOUND', ...(executablePath ? [] : [appPath])],
-    env: { ...system, HOME: home, USERPROFILE: home, APPDATA: home, LOCALAPPDATA: home,
-      XDG_CONFIG_HOME: home, XDG_DATA_HOME: home, XDG_CACHE_HOME: home, CODEX_HOME: home,
-      TEMP: home, TMP: home, TMPDIR: home },
+    env: fixtureEnvironment(home),
+    ...(executablePath && { cwd: home }),
   })
   try {
     assert.equal(await realpath(await app.evaluate(({ app }) => app.getPath('userData'))), await realpath(data))

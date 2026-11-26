@@ -68,6 +68,7 @@ jobs:
       - name: Build installer
         run: npm run package:native -- --${{ matrix.target }} --${{ matrix.arch }}
       - name: Native smoke against packaged executable
+        shell: bash
         env:
           PLUTO_SMOKE_EXECUTABLE: ${{ github.workspace }}/${{ matrix.executable }}
         run: |

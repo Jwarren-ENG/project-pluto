@@ -1,3 +1,4 @@
+import { fixtureEnvironment } from './setup-fixture.mjs'
 // Run after building the renderer: node tests/notebook-desktop.mjs
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
@@ -169,14 +170,11 @@ try {
   const note = writer.saveNote({ id: 'managed-prep', jobId: job.id, title: 'Interview preparation', body: firstBody })
   config.prefs.set('jobkit.noteFiles', { [note.id]: 'Interviews/Print schedule.md' })
   config.prefs.set('jobkit.managed', { configured: true, vaultPath: vault })
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
-    /^(PATH|SystemRoot|WINDIR|LANG|LC_ALL|DISPLAY|WAYLAND_DISPLAY|XAUTHORITY|XDG_RUNTIME_DIR|DBUS_SESSION_BUS_ADDRESS)$/i.test(key)))
   app = await electron.launch({ executablePath,
     args: ['--user-data-dir=' + data, '--disable-background-networking', '--disable-sync',
       '--disable-component-update', '--host-resolver-rules=MAP * ~NOTFOUND', ...(executablePath ? [] : [appPath])],
-    env: { ...env, HOME: home, USERPROFILE: home, APPDATA: home, LOCALAPPDATA: home,
-      XDG_CONFIG_HOME: home, XDG_DATA_HOME: home, XDG_CACHE_HOME: home, CODEX_HOME: home,
-      TEMP: home, TMP: home, TMPDIR: home },
+    env: fixtureEnvironment(home),
+    ...(executablePath && { cwd: home }),
   })
   assert.equal(await realpath(await app.evaluate(({ app }) => app.getPath('userData'))), await realpath(data))
   if (executablePath) assert.equal(await realpath(await app.evaluate(() => process.execPath)), await realpath(executablePath))
