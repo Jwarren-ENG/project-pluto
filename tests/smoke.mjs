@@ -1,3 +1,4 @@
+import { enterFixtureWorkspace } from './setup-fixture.mjs'
 // Exercise the actual desktop renderer and restricted main-process bridge with disposable local data.
 import { _electron as electron } from 'playwright';
 import { strict as assert } from 'node:assert';
@@ -546,7 +547,7 @@ try{
   let page=await app.firstWindow();
   const faults=[];
   page.on('pageerror',e=>faults.push(e.message));
-  await page.getByRole('heading',{name:'Today', exact:true}).waitFor();
+  await enterFixtureWorkspace(page)
   assert.equal(await page.locator('.brand img').evaluate(img=>img.complete&&img.naturalWidth>0),true);
   if(process.env.PLUTO_SCREENSHOT)await page.screenshot({path:process.env.PLUTO_SCREENSHOT});
   const nav=page.getByRole('navigation');

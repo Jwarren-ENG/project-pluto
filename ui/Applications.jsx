@@ -3,14 +3,17 @@ import { Button } from './components/ui/button'
 import { Input } from './components/ui/input'
 import { Textarea } from './components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table'
+import { formatRecordDate, recordDate, validDay } from '../desktop/record-dates.mjs'
+import { isRecordedPdf } from '../desktop/recorded-material.mjs'
 
 const stages = ['Saved', 'Preparing', 'Applied', 'Interview', 'Offer', 'Closed']
 const employerStages = new Set(['Applied', 'Interview', 'Offer', 'Closed'])
 const fields = ['company', 'title', 'url', 'location', 'salary', 'description', 'resumeText', 'draft']
 
 function localTime(iso) {
-  if (!iso) return ''
-  const date = new Date(iso)
+  if (validDay(iso)) return iso
+  const date = iso instanceof Date ? iso : recordDate(iso)?.instant
+  if (!date || !Number.isFinite(date.valueOf())) return ''
   const pad = n => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
@@ -26,20 +29,57 @@ function receiptText(value) {
   return typeof value === 'string' ? value : Object.entries(value ?? {}).map(([k, v]) => `${k}: ${v}`).join('\n')
 }
 
+function RecordedAt({ value }) {
+  if (!recordDate(value)) return 'Date unknown'
+  return <time dateTime={value}>{formatRecordDate(value)}</time>
+}
+
+function SubmittedPdfs({ jobId, materials }) {
+  const [opening, setOpening] = useState(null)
+  const [message, setMessage] = useState('')
+  const files = Array.isArray(materials) ? materials.flatMap((material, index) => {
+    if (!isRecordedPdf(material)) return []
+    const label = material.kind === 'resume' ? 'résumé' : material.kind === 'cover_letter' ? 'cover letter' : 'attachment ' + (index + 1)
+    return [{ index, label }]
+  }) : []
+
+  async function view(index) {
+    setOpening(index)
+    setMessage('')
+    try {
+      const opened = await window.pluto.call('application.openMaterial', { id: jobId, materialIndex: index })
+      if (opened !== true) throw new Error()
+      setMessage('PDF verified and opened.')
+    } catch {
+      setMessage('Could not verify or open the recorded PDF. Check the file in your private workspace.')
+    } finally { setOpening(null) }
+  }
+
+  return <>
+    <h3>Submitted files</h3>
+    {files.length ? <div className="toolbar">{files.map(({ index, label }) =>
+      <Button key={index} type="button" variant="outline" size="sm" disabled={opening !== null}
+        onClick={() => view(index)}>{opening === index ? 'Verifying PDF…' : 'View submitted ' + label + ' PDF'}</Button>
+    )}</div> : <p>No verifiable submitted PDF was recorded.</p>}
+    {message && <p role="status">{message}</p>}
+  </>
+}
+
 function RecordHistory({ job }) {
   const sent = job.submittedSnapshot
   return <>
     {sent && <details className="border-t py-4"><summary className="cursor-pointer font-medium">Submitted copy</summary>
-      <p>{sent.company} · {sent.title} · <time dateTime={sent.submittedAt}>{new Date(sent.submittedAt).toLocaleString()}</time></p>
+      <p>{sent.company} · {sent.title} · <RecordedAt value={sent.submittedAt} /></p>
       <h3>Employer receipt</h3><pre>{receiptText(sent.evidence)}</pre>
+      <SubmittedPdfs jobId={job.id} materials={sent.materials} />
       <h3>Submitted résumé</h3><pre>{sent.resumeText || 'No résumé text was recorded.'}</pre>
       <h3>Submitted draft</h3><pre>{sent.draft || 'No draft text was recorded.'}</pre>
     </details>}
     {!!job.history?.length && <details className="border-t py-4"><summary className="cursor-pointer font-medium">Application history</summary>
       <ol>{job.history.slice().reverse().map((e, i) => <li key={e.recordedAt + '/' + i}>
-        <strong>{e.stage}</strong> · <time dateTime={e.recordedAt}>{new Date(e.recordedAt).toLocaleString()}</time>
+        <strong>{e.stage}</strong> · <RecordedAt value={e.recordedAt} />
         {e.evidence && <pre>{receiptText(e.evidence)}</pre>}
-        {e.interviewAt && <p>Interview · {new Date(e.interviewAt).toLocaleString()}</p>}
+        {e.interviewAt && <p>Interview · <RecordedAt value={e.interviewAt} /></p>}
       </li>)}</ol>
     </details>}
   </>
@@ -85,13 +125,15 @@ function JobEditor({ initial, state, refresh, notify, close, reportEditor, reque
   async function save(event) {
     event.preventDefault()
     await run('Saving', async () => {
-      let at = base.interviewAt ?? null
-      if (form.interviewAt !== localTime(at)) {
-        const date = form.interviewAt ? new Date(form.interviewAt) : null
-        if (date && (!Number.isFinite(date.valueOf()) || localTime(date) !== form.interviewAt)) {
-          throw new Error('Choose a valid interview time in your local time zone.')
+      let at
+      if (form.interviewAt !== localTime(base.interviewAt)) {
+        if (!form.interviewAt || validDay(form.interviewAt)) {
+          at = form.interviewAt || null
+        } else {
+          const date = new Date(form.interviewAt)
+          if (localTime(date) !== form.interviewAt) throw new Error('Choose a valid interview time in your local time zone.')
+          at = date.toISOString()
         }
-        at = date?.toISOString() ?? null
       }
       let saved
       try {
@@ -195,7 +237,12 @@ function JobEditor({ initial, state, refresh, notify, close, reportEditor, reque
           <label>Stage<select aria-label="Stage" value={form.stage} disabled={!!busy} onChange={e => change('stage', e.target.value)}>
             {stages.map(stage => <option key={stage}>{stage}</option>)}
           </select></label>
-          {(form.stage === 'Interview' || base.interviewAt) && input('interviewAt', 'Interview time (local)', { type: 'datetime-local' })}
+          {validDay(base.interviewAt) ? <>
+            <label>Interview date<Input type="date" value={form.interviewAt.slice(0, 10)} disabled={!!busy}
+              onChange={e => change('interviewAt', e.target.value ? e.target.value + form.interviewAt.slice(10) : '')} /></label>
+            <label>Interview time (optional)<Input type="time" value={form.interviewAt.slice(11)} disabled={!!busy || !form.interviewAt}
+              onChange={e => change('interviewAt', form.interviewAt.slice(0, 10) + (e.target.value ? 'T' + e.target.value : ''))} /></label>
+          </> : (form.stage === 'Interview' || base.interviewAt) && input('interviewAt', 'Interview time (local)', { type: 'datetime-local' })}
         </div>
         <label>{needsProof ? 'Employer evidence (required)' : 'Add employer evidence'}
           <Textarea aria-label={needsProof ? 'Employer evidence (required)' : 'Add employer evidence'} rows={3} value={form.evidence}

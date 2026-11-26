@@ -116,6 +116,11 @@ export default function Notebook({ state, notify, refresh, seed, setSeed, report
           {state.jobs.map(j => <option value={j.id} key={j.id}>{j.company} · {j.title}</option>)}
         </select></label>
       </div>
+      {state.linkedNotes?.includes(editor.id) &&
+        <Button type="button" variant="link" size="sm" className="self-start px-0" disabled={!!pending}
+          onClick={() => run('Opening source', () => window.pluto.call('jobkit.openNote', { id: editor.id }))}>
+          Open original note in Obsidian
+        </Button>}
       <label>Markdown<Textarea aria-label="Markdown" rows={10} value={editor.body} disabled={!!pending}
         onChange={e => setEditor({ ...editor, body: e.target.value })} /></label>
       {stale && <div role="status"><p>A newer version was saved. Your edits are still in the form.</p>

@@ -1,3 +1,4 @@
+import { enterFixtureWorkspace } from './setup-fixture.mjs'
 import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
 import os from 'node:os'
@@ -11,6 +12,7 @@ let app
 try {
   app = await launch()
   let page = await app.firstWindow()
+  await enterFixtureWorkspace(page)
   const nav = (name) => page.getByRole('navigation').getByRole('button', { name, exact: true }).click()
   await nav('Discover')
   await page.getByRole('button', { name: 'Use the Simplify new grad list' }).click()

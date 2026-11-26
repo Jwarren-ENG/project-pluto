@@ -17,7 +17,7 @@ function catalogSummary(catalog) {
   return [source, catalog.models.length ? orderLabels[catalog.order] : 'No models listed.'].filter(Boolean).join(' ')
 }
 
-export default function ModelPicker({ provider, value, onChange, configured, apiKey = '', endpoint, savedEndpoint, optional = false, disabled = false, signedOut = false }) {
+export default function ModelPicker({ provider, value, onChange, configured, apiKey = '', endpoint, savedEndpoint, optional = false, disabled = false, signedOut = false, autoLoad = true }) {
   const id = useId()
   const generation = useRef(0)
   const [catalog, setCatalog] = useState(null)
@@ -54,7 +54,7 @@ export default function ModelPicker({ provider, value, onChange, configured, api
   }, [provider, configured, apiKey, endpoint, savedEndpoint, signedOut])
 
   const initialLoad = useEffectEvent(() => {
-    if (!signedOut && !apiKey && endpoint === savedEndpoint && (configured || provider === 'openrouter')) load(false)
+    if (autoLoad && !signedOut && !apiKey && endpoint === savedEndpoint && (configured || provider === 'openrouter')) load(false)
   })
   // Typing a key or address invalidates the old list. Only the button may use those edits.
   useEffect(() => { initialLoad() }, [provider, configured, savedEndpoint, signedOut])

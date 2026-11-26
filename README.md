@@ -1,6 +1,6 @@
 # Project Pluto
 
-Draft job applications with your ChatGPT subscription through the official Codex CLI. Project Pluto is a local desktop workspace for macOS and Windows where you can find roles, review drafts, keep submission receipts and organize interview notes.
+Project Pluto brings the #LOCKEDIN Job Kit tracker and your optional Obsidian notebook into one local dashboard for macOS and Windows. Open Today to follow interviews, review receipts, and continue a search from the private workspace you already use. [Connecting an existing workspace](docs/job-kit.md)
 
 Install Codex on the same computer, then choose **Connections → AI for drafts → ChatGPT subscription · Codex**. Select **Use subscription for drafts** to reuse a sign-in, or **Sign in with ChatGPT** to open the official browser login. Drafts use your ChatGPT plan’s Codex access and usage limits. [Setup guide](docs/providers.md) · [Codex CLI installation](https://developers.openai.com/codex/cli/)
 
@@ -31,7 +31,7 @@ Choose your drafting model in **Connections → AI for drafts**. Refresh the pro
 
 If your primary provider reaches its quota, you can opt into a fallback through OpenRouter’s free models. Enabling it requires an OpenRouter API key and installs a managed local OmniRoute gateway in the background. Connections shows setup progress. Turning the fallback off or quitting Pluto stops the gateway. [Free fallback setup](docs/providers.md#free-fallback-with-omniroute)
 
-The app starts with an empty workspace. It keeps your records in the current operating system user's application data directory. API credentials use operating system protected encryption. Your résumé, job records and notes are stored locally in a database. A vault export creates readable Markdown files in the folder you choose. Select a private folder if your materials contain personal information.
+On first launch, you can connect an existing job kit or start with a new profile. It keeps your records in the current operating system user's application data directory. API credentials use operating system protected encryption. Your résumé, job records and notes are stored locally in a database. A vault export creates readable Markdown files in the folder you choose. Select a private folder if your materials contain personal information.
 
 Hosted API requests, OpenRouter inference and Firecrawl searches use their respective accounts and billing. Anthropic supports API keys only. Local Ollama has a $0 hosted model fee. The app can also track applications and notes without a provider.
 

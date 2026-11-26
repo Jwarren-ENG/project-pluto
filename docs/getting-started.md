@@ -1,18 +1,27 @@
 # Getting started with Project Pluto
 
-This guide shows **Project Pluto v0.2.4**. Older GitHub installers may show different screens.
+This guide shows **Project Pluto v0.2.5**. Older GitHub installers may show different screens.
 
 This walkthrough takes you from an empty workspace to a saved employer receipt. The screenshots follow a fictional applicant tracking an Inventory Analyst opening at Harborline Books. You can follow along with a real posting and leave it at **Saved** until you’re ready to apply.
 
 ## 1. Open your workspace
 
-Launch **Project Pluto** on your Mac or Windows computer. The first screen, **Today**, shows an empty application queue. Choose **Add résumé** at the top right to get started. You can track a role on this device before connecting an inbox or an AI account. [Choose the right installer](install.md#choose-an-installer)
+Launch **Project Pluto** on your Mac or Windows computer. A new workspace opens at **Your name and résumé**. Enter your name and use **Choose résumé file** to select a PDF, DOCX or TXT file up to 5 MiB. You can also choose **Paste résumé text**. Read the text, correct anything the file reader missed, then choose **Save and continue**. You can save just your name. [Choose the right installer](install.md#choose-an-installer)
 
-![Project Pluto on first launch, with Add résumé and Add role above the empty Today queue.](images/first-launch.png)
+![The first setup step asks for a name and offers a résumé file picker, pasted text and an optional job kit connection.](images/setup-welcome.png)
 
-## 2. Review your résumé
+If you already keep your applications in a job kit folder, choose **Connect existing job kit** on this first screen to import it. Existing Pluto workspaces open directly in **Today**. Choose **Open setup** in the sidebar to revisit any step.
 
-Use **Choose résumé file** to open a PDF, DOCX or TXT file up to 5 MiB, or expand **Paste résumé text**. If a scanned PDF gives you empty or jumbled text, paste a readable copy. Then select **Review facts**.
+1. In **Preferences**, enter your target roles, preferred locations and availability. Choose **Save and continue**.
+2. In **Email**, choose an inbox to connect or continue without one. You can check for employer replies later in **Job mail**.
+3. In **AI provider**, choose your subscription or configure an API or local model. An account sign-in and the choice of provider for drafts are separate actions. The provider controls show which action is available on your computer.
+4. In **Budget**, change **Jobs per day** or **Pricing scenario** to see the estimate update. Choose **Save budget and open Today** to keep it, or **Skip this step** to leave your budget as it is.
+
+Closing Pluto during setup keeps your place and unfinished profile or budget entries on this device. **Back** lets you review a previous step. **Skip this step** drops unsaved edits on the current step. **Skip setup** opens Today and clears the remaining draft. Previously saved details and completed connections stay in your workspace.
+
+## 2. Review facts and add more to your profile
+
+Open **Profile** from the sidebar. If your profile already has a name or résumé, choose **Edit profile**. Otherwise, choose a résumé file or expand **Paste résumé text**. Select **Review facts** to see suggested details from your résumé.
 
 Under **Facts to keep**, open **View source** to compare a suggestion with your original wording. Edit the fact or clear its checkbox. If the original résumé text also needs a correction, use **Back** to edit it. Choose **Continue to preferences** and enter any target roles or locations.
 
@@ -26,7 +35,7 @@ A new story starts with **Use in application drafts** unchecked. Select it if yo
 
 Choose **Edit application answers** to keep private details handy for employer forms, such as your availability or work authorization by country. Leave a yes/no question **Unanswered** until you have an answer. Choose **Save answers**, then use **Review saved answers** to check what you entered. These details stay out of AI drafts.
 
-During setup, the stories and answers are held for your final review. Choose **Review profile**, check the confirmation box, and select **Save confirmed profile**. When you return to **Profile**, you can save changes directly in each editor or choose **Cancel** to discard an edit.
+In the profile editor, stories and answers are held for your final review. Choose **Review profile**, check the confirmation box, and select **Save confirmed profile**. When you return to **Profile**, you can save changes directly in each editor or choose **Cancel** to discard an edit.
 
 ## 3. Find an opening
 

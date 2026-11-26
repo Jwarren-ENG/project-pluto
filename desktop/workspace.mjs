@@ -6,6 +6,9 @@ import {
 import { dirname, join } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
 import { DatabaseSync } from 'node:sqlite'
+import { compareRecordDates, recordDate, upcomingInterviews, validDay } from './record-dates.mjs'
+
+import { importKitTracker } from './kit-tracker.mjs'
 
 const stages = ['Saved', 'Preparing', 'Applied', 'Interview', 'Offer', 'Closed']
 const defaults = { enabled: false, hour: 9, minute: 0, query: '', lastRunDate: null }
@@ -13,7 +16,6 @@ const endCase = '<!-- end:pluto-record -->'
 const maxText = 2_000_000
 const idPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/
 const hash = value => createHash('sha256').update(value).digest('hex')
-const now = () => new Date().toISOString()
 
 function object(value, name) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`Expected a ${name} object.`)
@@ -39,14 +41,9 @@ function webUrl(value) {
   return value
 }
 
-function validDay(value) {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  const n = Date.parse(value + 'T00:00:00.000Z')
-  return Number.isFinite(n) && new Date(n).toISOString().slice(0, 10) === value
-}
-
 function interviewTime(value) {
   if (value === '' || value === null) return null
+  if (validDay(value)) return value
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value) || !validDay(value.slice(0, 10)) || !Number.isFinite(Date.parse(value))) {
     throw new Error('Enter a valid interview date and time.')
   }
@@ -210,12 +207,10 @@ export function createWorkspace(directory) {
       .map(job => ({ ...job, submittedSnapshot: submissions.get(job.id) ?? null, history: events.get(job.id) ?? [] })).sort(byRecent)
     const notes = db.prepare('SELECT data FROM notes').all().map(decodeRow).sort(byRecent)
     const evidence = jobs.flatMap(job => job.history.filter(e => e.evidence).map(e => ({ ...e, company: job.company, title: job.title })))
-      .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))
-    const today = now()
-    const upcomingInterviews = jobs.filter(j => j.stage === 'Interview' && j.interviewAt >= today)
-      .sort((a, b) => a.interviewAt.localeCompare(b.interviewAt))
+      .sort((a, b) => compareRecordDates(recordDate(a.recordedAt), recordDate(b.recordedAt), -1))
+    const interviews = upcomingInterviews(jobs)
       .map(({ id: jobId, company, title, interviewAt }) => ({ jobId, company, title, interviewAt }))
-    return { profile: setting('profile'), jobs, notes, schedule: { ...defaults, ...setting('schedule') }, evidence, upcomingInterviews }
+    return { profile: setting('profile'), jobs, notes, schedule: { ...defaults, ...setting('schedule') }, evidence, upcomingInterviews: interviews }
   }
 
   function sync(directory, mode) {
@@ -291,8 +286,17 @@ export function createWorkspace(directory) {
     })
   }
 
+  // SQLite changes this value on a connection when a different connection commits.
+  const revisionQuery = db.prepare('PRAGMA data_version')
+  const dataVersion = () => revisionQuery.get().data_version
   return {
-    snapshot: () => transaction(db, snapshot, false),
+    dataVersion,
+    importKitJobs: (source, rows, meetings) => transaction(db, () => importKitTracker(db, source, rows, meetings)),
+    snapshot: ({ includeVersion = false } = {}) => transaction(db, () => {
+      const state = snapshot()
+      if (includeVersion) state.dataVersion = dataVersion()
+      return state
+    }, false),
     saveJob,
     saveNote: input => transaction(db, () => storeNote(input)),
     saveProfile: input => transaction(db, () => set('profile', { ...setting('profile'), ...object(input, 'profile') })),

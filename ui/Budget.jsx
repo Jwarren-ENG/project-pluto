@@ -111,15 +111,15 @@ function Projection({ estimate, metric, local }) {
   </section>
 }
 
-export default function Budget({ state, refresh, notify }) {
+export default function Budget({ state, refresh, notify, setup }) {
   const initial = state?.profile?.budget
-  const [form, setForm] = useState(() => loadBudget(initial))
-  const [sliderLimit, setSliderLimit] = useState(() => sliderMax(initial?.jobsPerDay))
-  const [dirty, setDirty] = useState(false)
+  const [form, setForm] = useState(() => loadBudget(setup?.draft ?? initial))
+  const [sliderLimit, setSliderLimit] = useState(() => sliderMax(form.jobsPerDay))
+  const [dirty, setDirty] = useState(Boolean(setup?.draft))
   const [connection, setConnection] = useState(null)
   const [saving, setSaving] = useState(false)
   const loaded = useRef(initial)
-  const userTouchedBudget = useRef(false)
+  const userTouchedBudget = useRef(Boolean(setup?.draft))
 
   useEffect(() => {
     // Refresh scheduled prices if the planner stays open overnight or the computer wakes.
@@ -160,15 +160,17 @@ export default function Budget({ state, refresh, notify }) {
       setSliderLimit(sliderMax(initial?.jobsPerDay))
     }
   }, [initial, dirty])
-  const setField = (key, value) => {
+  function editForm(next) {
     userTouchedBudget.current = true
     setDirty(true)
-    setForm(previous => ({ ...previous, [key]: value }))
+    setForm(next)
+    setup?.onEdit(next)
+  }
+  const setField = (key, value) => {
+    editForm({ ...form, [key]: value })
   }
   function setRate(key, value) {
-    userTouchedBudget.current = true
-    setDirty(true)
-    setForm(previous => ({ ...previous, rates: { ...previous.rates, [previous.provider]: { ...previous.rates[previous.provider], [key]: value } } }))
+    editForm({ ...form, rates: { ...form.rates, [form.provider]: { ...form.rates[form.provider], [key]: value } } })
   }
   const card = Object.hasOwn(rateCards, form.provider) ? rateCards[form.provider] : null
   const creditCard = Object.hasOwn(creditCards, form.provider) ? creditCards[form.provider] : null
@@ -183,6 +185,8 @@ export default function Budget({ state, refresh, notify }) {
     Number(prices.input) !== todayRates.input || Number(prices.output) !== todayRates.output)
   let estimate, error
   try { estimate = estimateBudget(form) } catch (problem) { error = problem.message }
+  const onValidityChange = setup?.onValidityChange
+  useEffect(() => { onValidityChange?.(!error) }, [error, onValidityChange])
   async function openSource(event) {
     if (event.type === 'auxclick' && event.button !== 1) return
     event.preventDefault()
@@ -196,6 +200,10 @@ export default function Budget({ state, refresh, notify }) {
     setSaving(true)
     try {
       const budget = normalizeBudget(form)
+      if (setup) {
+        await setup.onSave(budget)
+        return
+      }
       await window.pluto.call('workspace.saveProfile', { budget })
       setForm(budget)
       try {
@@ -207,7 +215,7 @@ export default function Budget({ state, refresh, notify }) {
     finally { setSaving(false) }
   }
   return <div className="budget-screen">
-    <form onSubmit={save}>
+    <form id={setup ? 'setup-budget-form' : undefined} onSubmit={save}>
       <div className="budget-plan">
         <section className="budget-target" aria-labelledby="budget-target-heading">
           <h2 id="budget-target-heading">Daily target</h2>
@@ -248,7 +256,7 @@ export default function Budget({ state, refresh, notify }) {
           <option value="ollama">Local inference · Ollama</option>
           <option value="subscription">Subscription plan</option>
         </select>
-        <Button type="submit" disabled={Boolean(error) || saving}>{saving ? 'Saving…' : 'Save budget'}</Button>
+        {!setup && <Button type="submit" disabled={Boolean(error) || saving}>{saving ? 'Saving…' : 'Save budget'}</Button>}
       </div>
       <div id="budget-scenario-help" className="budget-scenario-help">
         {sourceCard?.source && <p>
@@ -308,6 +316,7 @@ export default function Budget({ state, refresh, notify }) {
         </fieldset>
       </details>
     </form>
-    <Projection estimate={estimate} metric={metric} local={isLocal} />
+    {setup ? <details><summary>Explore the 30-day forecast</summary><Projection estimate={estimate} metric={metric} local={isLocal} /></details> :
+      <Projection estimate={estimate} metric={metric} local={isLocal} />}
   </div>
 }

@@ -1,4 +1,4 @@
-import {app,BrowserWindow,Menu,dialog,ipcMain,safeStorage,session,shell} from 'electron';
+import {app,BrowserWindow,Menu,clipboard,dialog,ipcMain,safeStorage,session,shell} from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
@@ -15,6 +15,9 @@ import {pickGoogleSetupFile} from './google-setup-file.mjs';
 import {createOmniRoute} from './omniroute.mjs';
 import {createSources} from './sources.mjs';
 import {readRegistrations} from './oauth-registrations.mjs';
+import {openArchivedMaterial} from './archived-file.mjs';
+import {createJobKit} from './job-kit.mjs';
+import {managedSummary,workflowTask,vaultAddress,requestManagedRefresh} from './workflow-actions.mjs';
 import {createResume} from './resume.mjs';
 import {scheduler} from './schedule.mjs';
 import {fillContacts,webUrl} from './web.mjs';
@@ -108,6 +111,7 @@ async function start(){
     }
   }
   const dir=app.getPath('userData');
+  const existingWorkspace=fs.existsSync(path.join(dir,'workspace.sqlite3'));
   fs.mkdirSync(dir,{recursive:true,mode:0o700});
   workspace=createWorkspace(dir);config=createConfig(dir,safeStorage);
   const openExternal=url=>shell.openExternal(webUrl(url));
@@ -122,8 +126,34 @@ async function start(){
   drive=createDrive({...config,openExternal,registrations,pickRegistrationFile:()=>pickGoogleSetupFile(dialog,win)});
   const resume=createResume({dialog,window:()=>win});
   denyDevices(session.defaultSession);
+  const kit=createJobKit({prefs:config.prefs,workspace,dialog,window:()=>win});
+  const managed=()=>config.prefs.get('jobkit.managed');
+  const codexAvailable=()=>/codex|chatgpt/i.test(app.getApplicationNameForProtocol('codex://threads/new'));
+  const kitStatus=result=>({...result,managed:managedSummary(managed()),codexAvailable:codexAvailable()});
   const methods={
-    'workspace.snapshot':()=>workspace.snapshot(),
+    'jobkit.status':()=>kitStatus(kit.status()),
+    'jobkit.choose':async p=>kitStatus(await kit.choose(p)),
+    'jobkit.sync':async()=>{
+      const next=kitStatus(await kit.sync());
+      if(next.managed){await requestManagedRefresh(dir);next.managedRequest=true;}
+      return next;
+    },
+    'jobkit.copyTask':({skill})=>{
+      clipboard.writeText(workflowTask(skill,kit.getPaths(),managed(),path.join(dir,'workspace.sqlite3')));
+      return true;
+    },
+    'jobkit.openTask':({skill})=>{
+      if(!codexAvailable())throw new Error('Install the Codex desktop app or use Copy task.');
+      const prompt=workflowTask(skill,kit.getPaths(),managed(),path.join(dir,'workspace.sqlite3'));
+      return shell.openExternal('codex://threads/new?prompt='+encodeURIComponent(prompt));
+    },
+    'jobkit.openVault':()=>shell.openExternal(vaultAddress(kit.getPaths(),managed())),
+    'jobkit.openNote':({id})=>{
+      const files=config.prefs.get('jobkit.noteFiles') || {};
+      if(typeof id!=='string' || !Object.hasOwn(files,id))throw new Error('This note has no connected source.');
+      return shell.openExternal(vaultAddress({}, {...managed(),vaultHome:files[id]}));
+    },
+    'workspace.snapshot':()=>({...workspace.snapshot({includeVersion:true}),existingWorkspace,linkedNotes:Object.keys(config.prefs.get('jobkit.noteFiles') || {})}),'workspace.dataVersion':()=>workspace.dataVersion(),
     'workspace.saveJob':p=>workspace.saveJob(p),'workspace.saveNote':p=>workspace.saveNote(p),
     'workspace.saveProfile':p=>workspace.saveProfile(p),'workspace.saveReviewedProfile':p=>workspace.saveReviewedProfile(p),
     'workspace.saveSchedule':p=>workspace.saveSchedule({...p,lastRunDate:workspace.snapshot().schedule?.lastRunDate||''}),
@@ -134,6 +164,7 @@ async function start(){
       return snapshot;
     },
     'discovery.status':()=>({latest:config.prefs.get('discoveryResults'),run:config.prefs.get('discoveryRun')}),
+    'application.openMaterial':p=>openArchivedMaterial(p,{getJob:jobById,workspacePath:managed()?.workspacePath || kit.getPaths().kit,openPath:file=>shell.openPath(file)}),
     'application.open':p=>openApplication(p.id),'application.pdf':p=>exportPdf(jobById(p.id)),'application.drivePdf':p=>saveDrivePdf(p),
     'providers.draft':p=>providers.draft({profile:workspace.getProfile(),job:p.job}),
     'app.openExternal':p=>openExternal(p.url),'resume.pick':()=>resume.pick()

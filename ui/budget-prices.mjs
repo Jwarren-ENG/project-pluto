@@ -1,5 +1,5 @@
 // Each price belongs to one provider, model and billing basis. Amounts are per million tokens.
-const checked = '2026-11-25'
+const checked = '2026-11-26'
 const openai = 'https://developers.openai.com/api/docs/models/'
 const anthropic = 'https://platform.claude.com/docs/en/about-claude/pricing'
 const openaiTier = 'Standard speed through 272,000 input tokens per request. For a longer request, double the input rate and multiply the output rate by 1.5.'
@@ -28,6 +28,10 @@ export const defaultScenario = 'gpt-6.2-sol'
 export const rateCards = {
   'gpt-6.2-sol': card('openai', 'gpt-6.2-sol', 'OpenAI · GPT-6.2 Sol', 2, 10, openai + 'gpt-6.2-sol', openaiTier),
   'gpt-6.2-astra': card('openai', 'gpt-6.2-astra', 'OpenAI · GPT-6.2 Astra', 8, 40, openai + 'gpt-6.2-astra', openaiTier),
+  'gpt-6.1-terra': card('openai', 'gpt-6.1-terra', 'OpenAI · GPT-6.1 Terra', 1, 5, openai + 'gpt-6.1-terra', openaiTier),
+  'gpt-6-luna': card('openai', 'gpt-6-luna', 'OpenAI · GPT-6 Luna', 0.10, 0.50, openai + 'gpt-6-luna', openaiTier),
+  'chat-latest': card('openai', 'chat-latest', 'OpenAI · chat-latest (rolling alias)', 5, 30, openai + 'chat-latest',
+    'This API alias follows the current ChatGPT Instant model. OpenAI can update the underlying model.'),
   'claude-sonnet-5-5': card('anthropic', 'claude-sonnet-5-5', 'Anthropic · Claude Sonnet 5.5', 2, 10, anthropic, 'Standard global API pricing.'),
   'claude-opus-5-5': card('anthropic', 'claude-opus-5-5', 'Anthropic · Claude Opus 5.5', 4, 20, anthropic, 'Standard global API pricing.'),
   'claude-haiku-5-5': card('anthropic', 'claude-haiku-5-5', 'Anthropic · Claude Haiku 5.5', 0.10, 0.50, anthropic, 'Through 100,000 input tokens per request. Above this, use $0.50 input and $2.50 output per million.'),

@@ -92,7 +92,7 @@ function SourceDetails({ source, quote, section }) {
   </details>
 }
 
-async function saveReviewed(original, reviewed) {
+export async function saveReviewed(original, reviewed) {
   const { profile } = await window.pluto.call('workspace.snapshot', {})
   const latest = profile || {}
   const standard = { ...reviewed }

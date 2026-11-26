@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
-import { budgetDefaults, connectedBudget, estimateBudget, loadBudget, normalizeBudget } from '../ui/budget-estimate.mjs'
+import { budgetDefaults, connectedBudget, estimateBudget, loadBudget, normalizeBudget, rateCards } from '../ui/budget-estimate.mjs'
 import { createWorkspace } from '../desktop/workspace.mjs'
 
 test('API range prices input and output separately and scales all usage over 30 days', () => {
@@ -150,6 +150,27 @@ test('default and connected scenarios price the exact API model, independently o
   assert.deepEqual(estimateBudget({ ...form, provider: 'codex-astra-credits' }).day.credits, [70, 200])
 })
 
+test('existing budgets gain the Terra, Luna and rolling chat API prices', () => {
+  const day = '2026-11-26'
+  const saved = { version: 3, rateDate: '2026-11-25', provider: 'custom', rates: { custom: { input: 2, output: 7 } } }
+  const budget = loadBudget(saved, day)
+  assert.equal(budget.provider, 'custom')
+  assert.deepEqual(budget.rates.custom, saved.rates.custom)
+
+  for (const [model, input, output, dailyTotal] of [
+    ['gpt-6.1-terra', 1, 5, [0.035, 0.10]],
+    ['gpt-6-luna', 0.10, 0.50, [0.0035, 0.01]],
+    ['chat-latest', 5, 30, [0.19, 0.54]],
+  ]) {
+    const settings = { activeProvider: 'openai', providers: { openai: { model } } }
+    assert.equal(connectedBudget(settings).scenario, model)
+    assert.deepEqual(budget.rates[model], { input, output })
+    assert.deepEqual(estimateBudget({ ...budget, provider: model }, day).day.total, dailyTotal)
+    assert.equal(rateCards[model].source, 'https://developers.openai.com/api/docs/models/' + model)
+  }
+  assert.match(rateCards['chat-latest'].label, /rolling/i)
+})
+
 test('old stock scenario migrates at the same target and custom prices keep their model', () => {
   const saved = { version: 2, provider: 'openai', jobsPerDay: 100, rates: { openai: { input: 0.4, output: 1.6 } } }
   assert.equal(loadBudget(saved).provider, 'gpt-6.2-sol')
@@ -183,6 +204,8 @@ test('published Gemini change is charged on the correct day and saved overrides 
   assert.deepEqual(forecast.days[6].total,[4.2,12])
   assert.deepEqual(forecast.days[7].total,[5.6,16])
   assert.deepEqual(forecast.month.total,[37.8,108])
+  // A forecast reopened on November 26 has five launch-price days and 25 at the December rate.
+  assert.deepEqual(estimateBudget(form, '2026-11-26').month.total, [38.5, 110])
   assert.deepEqual(estimateBudget(form,december).day.total,[1.4,4])
   assert.deepEqual(loadBudget(normalizeBudget(form,start),december).rates[form.provider],{input:4,output:20})
   form.rates[form.provider] = {input:0,output:2}

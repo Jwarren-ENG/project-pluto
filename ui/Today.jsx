@@ -1,9 +1,14 @@
+import JobKitWorkspace from './JobKitWorkspace.jsx';
 import React, { useRef, useState } from 'react';
 import { ArrowRight, CalendarDays, Plus, SlidersHorizontal } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
+import { formatRecordDate, recordDate, upcomingInterviews } from '../desktop/record-dates.mjs';
+import { localDay } from '../desktop/schedule.mjs';
 
+const shortDate = {month:'short',day:'numeric'};
+const clockTime = {hour:'numeric',minute:'2-digit'};
 const filters = [
   { key: 'open', label: 'In progress', include: job => ['Saved','Preparing'].includes(job.stage) },
   { key: 'sent', label: 'Submitted', include: job => Boolean(job.submittedSnapshot) },
@@ -11,7 +16,7 @@ const filters = [
 ];
 function receiptDate(job) {
   const recorded = job.submittedSnapshot?.submittedAt;
-  return recorded ? new Date(recorded).toDateString() : null;
+  return recordDate(recorded)?.day;
 }
 const fullDate = date => date.toLocaleDateString(undefined, {weekday:'long', month:'long', day:'numeric'});
 
@@ -23,18 +28,23 @@ function RoleList({jobs,edit,allCount,go,byReceipt=false}){
   const visible = byReceipt ? jobs : jobs.slice(0,8);
   return <Table className="job-ledger"><TableHeader><TableRow><TableHead>Role / company</TableHead><TableHead>Status</TableHead><TableHead>{byReceipt ? 'Receipt recorded' : 'Updated'}</TableHead></TableRow></TableHeader><TableBody>
     {visible.map(job=><TableRow key={job.id}><TableCell><Button className="ledger-link" variant="link" onClick={()=>edit(job)}>{job.title}</Button><small>{job.company}</small></TableCell><TableCell>{job.stage}</TableCell><TableCell>{byReceipt
-      ? <time dateTime={job.submittedSnapshot.submittedAt}>{new Date(job.submittedSnapshot.submittedAt).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}</time>
-      : new Date(job.updatedAt).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</TableCell></TableRow>)}
+      ? <time dateTime={job.submittedSnapshot.submittedAt}>{formatRecordDate(job.submittedSnapshot.submittedAt, shortDate, clockTime)}</time>
+      : formatRecordDate(job.updatedAt, shortDate)}</TableCell></TableRow>)}
   </TableBody></Table>;
 }
 function Week({jobs,target,go,selectedDay,onSelect}){
   const now=new Date(),monday=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(now.getDay()+6)%7);
+  const receipts = new Map();
+  for (const job of jobs) {
+    const day = receiptDate(job);
+    if (day) receipts.set(day, (receipts.get(day) || 0) + 1);
+  }
   const days=Array.from({length:7},(_,offset)=>{
     const date=new Date(monday);date.setDate(date.getDate()+offset);
-    const key=date.toDateString();
-    return {date,key,count:jobs.filter(job=>receiptDate(job)===key).length};
+    const key=localDay(date);
+    return {date,key,count:receipts.get(key) || 0};
   });
-  const today=days.find(d=>d.key===now.toDateString()),peak=Math.max(1,...days.map(d=>d.count));
+  const today=days.find(d=>d.key===localDay(now)),peak=Math.max(1,...days.map(d=>d.count));
   return <section className="rail-section"><div className="rail-heading"><h2>Daily target</h2><Button className="quiet-icon" variant="ghost" size="icon" aria-label="Adjust daily target" onClick={()=>go('Daily budget')}><SlidersHorizontal size={16}/></Button></div>
     <div className="daily-total"><strong>{today.count}</strong>{target>0 && <span> / {target}</span>}</div>
     <p className="rail-meta">{target===0 ? 'Target paused' : 'Confirmed submissions today'}</p>
@@ -48,38 +58,39 @@ function Week({jobs,target,go,selectedDay,onSelect}){
   </section>;
 }
 function NextInterview({job,edit}){
-  const date=new Date(job.interviewAt);
+  const at = job.interviewAt;
+  const { instant } = recordDate(at);
   return <section className="next-interview" aria-label="Next interview">
     <time dateTime={job.interviewAt} className="appointment-date">
-      <span>{date.toLocaleDateString(undefined,{month:'short'})}</span>
-      <strong>{date.getDate()}</strong>
+      <span>{formatRecordDate(at, {month:'short'})}</span>
+      <strong>{formatRecordDate(at, {day:'numeric'})}</strong>
     </time>
     <div className="appointment-copy">
-      <p className="dateline">Next interview · {date.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}</p>
+      <p className="dateline">Next interview · {instant ? instant.toLocaleTimeString(undefined,clockTime) : 'Time pending'}</p>
       <h2>{job.company}</h2><p>{job.title}</p>
       <Button variant="link" onClick={()=>edit(job)}>Open application <ArrowRight size={14}/></Button>
     </div>
   </section>;
 }
 
-export default function Today({state,go,edit}){
+export default function Today({state,go,edit,refresh}){
   const [filter,setFilter]=useState('open');
   const [day,setDay]=useState(null);
   const dayButton=useRef(null);
   const {jobs,profile}=state;
-  const dayKey=day?.toDateString();
+  const dayKey=day && localDay(day);
   const dayJobs=day ? jobs.filter(job=>receiptDate(job)===dayKey) : [];
   function selectDay(date,button){
     dayButton.current=button;
-    setDay(date.toDateString()===dayKey ? null : date);
+    setDay(localDay(date)===dayKey ? null : date);
   }
   function clearDay(){
     setDay(null);
     dayButton.current?.focus();
   }
   const first=!profile?.resumeText && !profile?.confirmedFacts?.length;
-  const interviews=jobs.filter(j=>j.stage==='Interview' && (!j.interviewAt || Date.parse(j.interviewAt)>=Date.now())).sort((a,b)=>(a.interviewAt||'z').localeCompare(b.interviewAt||'z'));
-  const next=interviews.find(j=>j.interviewAt);
+  const interviews = upcomingInterviews(jobs, { includePending: true });
+  const next = interviews.find(job => recordDate(job.interviewAt));
   const remaining=interviews.filter(j=>j.id!==next?.id);
   return <>
     <header className="desk-header"><div><p className="dateline">{new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})}</p><h1>Today</h1></div>
@@ -96,8 +107,9 @@ export default function Today({state,go,edit}){
           {day && <Button type="button" variant="link" onClick={clearDay}>Clear day filter</Button>}</div>
         {filters.map(f=><TabsContent key={f.key} value={f.key}><RoleList jobs={day && f.key==='sent' ? dayJobs : jobs.filter(f.include)} byReceipt={Boolean(day) && f.key==='sent'} allCount={jobs.length} edit={edit} go={go}/></TabsContent>)}</Tabs>
       </section>
+      <JobKitWorkspace state={state} go={go} refresh={refresh}/>
     </div><aside className="agenda"><Week jobs={jobs} target={profile?.budget?.jobsPerDay} go={go} selectedDay={dayKey} onSelect={selectDay}/>
       <section className="rail-section"><div className="rail-heading"><h2>{next ? 'Later interviews' : 'Upcoming interviews'}</h2><CalendarDays size={16}/></div>
-        {remaining.length?remaining.map(j=><Button variant="ghost" key={j.id} className="interview-row" onClick={()=>edit(j)}><strong>{j.company}</strong><small>{j.title}</small><time>{j.interviewAt?new Date(j.interviewAt).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'Date pending'}</time></Button>):<p className="rail-meta">{next?'No other interviews scheduled.':'No interviews scheduled.'}</p>}
+        {remaining.length?remaining.map(j=><Button variant="ghost" key={j.id} className="interview-row" onClick={()=>edit(j)}><strong>{j.company}</strong><small>{j.title}</small>{recordDate(j.interviewAt) ? <time dateTime={j.interviewAt}>{formatRecordDate(j.interviewAt, shortDate, {...shortDate,...clockTime})}</time> : <span>Date pending</span>}</Button>):<p className="rail-meta">{next?'No other interviews scheduled.':'No interviews scheduled.'}</p>}
       </section></aside></div></>;
 }

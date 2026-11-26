@@ -16,6 +16,8 @@ For a developer API connection, choose **API or local model**, select a provider
 | --- | --- | --- |
 | OpenAI | OpenAI API key | Choose a model available to the key that supports Chat Completions. |
 | Anthropic | Anthropic API key | Choose a Claude model available to the key that supports Messages. |
+| Google Gemini | Gemini API key | Choose a text model from the Google model list in Connections. |
+| xAI Grok | xAI API key | Choose a text model available to your xAI account. |
 | OpenRouter | Sign in with OpenRouter or enter an API key | Approve access in the system browser. Inference uses the OpenRouter account’s credits. The model can be a routed model ID. |
 | OpenAI compatible | HTTPS API base URL and the key for that address | Include the API prefix your service specifies, such as `https://api.example.com/v1`. Pluto appends `/chat/completions`. Enter the model ID supplied by that service. |
 | Ollama | Local HTTP server with an installed model | The default address is `http://127.0.0.1:11434`. Enter the exact installed model name. Pluto checks the local model metadata before sending a prompt. |
@@ -28,6 +30,12 @@ The ChatGPT subscription check verifies the Codex sign-in. **Test model** for an
 Open **Connections → AI for drafts** and select your provider. Use **Load models** or **Refresh models** to fetch its list. Models with dates appear newest first, followed by undated entries in the provider’s order. Ollama uses local modification dates for installed models. Your saved model stays selected across refreshes, even if it drops out of the list.
 
 Choose a model and select **Use for drafts** or **Save connection**. If the list is unavailable, you can enter a model ID manually. For a ChatGPT subscription, keep **Account default** to let Codex choose, or select a model and use **Save subscription model** when the connection is active. To estimate API costs, enter the chosen model’s published rates in **Daily budget**. [Budget guide](budget.md#pricing-scenarios)
+
+## Using an account you already have
+
+OpenDesign 0.26.1 hands local work to each provider’s installed program. It starts Claude Code for Claude, Codex for ChatGPT, Antigravity for Google and Grok Build for xAI. Those programs handle their own sign-in. OpenDesign also supports entering a provider API key for a direct connection. [OpenDesign provider adapters](https://github.com/nexu-io/open-design/tree/ac476788b7393f491df7d511c1c3b2d43b35e0fb/apps/daemon/src/runtimes/defs)
+
+In Pluto, **Use subscription for drafts** can reuse an existing Codex session signed in with ChatGPT. When you request a draft, Pluto starts a temporary, read-only Codex session. Claude, Gemini and Grok drafts use the API connection in the table above. The Google and Grok sign-in instructions open the provider’s own account flow. After that, drafting in Pluto still requires the corresponding API connection. Daily budget lets you compare a model’s price before you connect it.
 
 ## Free fallback with OmniRoute
 
@@ -54,7 +62,7 @@ Pluto sends the selected job’s title, company, description, location and salar
 | `providers.draft` | `{ profile, job }` | Draft text as a string. |
 | `providers.search` | `{ query }` | Up to ten web results, each with `title`, `url` and `description`. An empty array is a valid result. |
 
-Provider IDs are `codex`, `openai`, `anthropic`, `openrouter`, `custom`, `ollama` and `firecrawl`. Configuration is local. A test is the explicit connectivity check. Failed operations throw errors suitable for display.
+Provider IDs are `codex`, `openai`, `anthropic`, `gemini`, `xai`, `openrouter`, `custom`, `ollama` and `firecrawl`. Configuration is local. A test is the explicit connectivity check. Failed operations throw errors suitable for display.
 
 ## Credentials and sign-in
 

@@ -4,12 +4,15 @@ Open **Daily budget** and enter the number of jobs you plan to work on each day.
 
 ## Pricing scenarios
 
-These are standard, uncached text prices checked on November 25, 2026, in US dollars per million tokens. Use the provider’s reported billable output, including reasoning tokens, when estimating an actual application. Discounts for caching or batch requests, regional surcharges and taxes can change the bill.
+These are standard, uncached text prices checked on November 26, 2026, in US dollars per million tokens. Use the provider’s reported billable output, including reasoning tokens, when estimating an actual application. Discounts for caching or batch requests, regional surcharges and taxes can change the bill.
 
 | Model | Input | Output | Billing basis |
 | --- | ---: | ---: | --- |
-| GPT-6.2 Sol | $2 | $10 | Standard through 272,000 input tokens per request. [OpenAI](https://developers.openai.com/api/docs/models/gpt-6.2-sol) |
-| GPT-6.2 Astra | $8 | $40 | Same threshold. For longer requests both OpenAI models charge twice the input rate and 1.5 times the output rate. [OpenAI](https://developers.openai.com/api/docs/models/gpt-6.2-astra) |
+| GPT-6.2 Sol | $2 | $10 | Above 272,000 input tokens per request, the rates are $4 input and $15 output. [OpenAI](https://developers.openai.com/api/docs/models/gpt-6.2-sol) |
+| GPT-6.2 Astra | $8 | $40 | Above 272,000 input tokens per request, the rates are $16 input and $60 output. [OpenAI](https://developers.openai.com/api/docs/models/gpt-6.2-astra) |
+| GPT-6.1 Terra | $1 | $5 | Above 272,000 input tokens per request, the rates are $2 input and $7.50 output. [OpenAI](https://developers.openai.com/api/docs/models/gpt-6.1-terra) |
+| GPT-6 Luna | $0.10 | $0.50 | Above 272,000 input tokens per request, the rates are $0.20 input and $0.75 output. [OpenAI](https://developers.openai.com/api/docs/models/gpt-6-luna) |
+| `chat-latest` | $5 | $30 | Rolling API alias for the current ChatGPT Instant model. OpenAI can update the underlying model. [OpenAI](https://developers.openai.com/api/docs/models/chat-latest) |
 | Claude Sonnet 5.5 | $2 | $10 | Global standard API. [Anthropic](https://platform.claude.com/docs/en/about-claude/pricing) |
 | Claude Opus 5.5 | $4 | $20 | Global standard API. [Anthropic](https://platform.claude.com/docs/en/about-claude/pricing) |
 | Claude Haiku 5.5 | $0.10 | $0.50 | Through 100,000 input tokens per request. Above that, use $0.50 input and $2.50 output. [Anthropic](https://platform.claude.com/docs/en/about-claude/pricing) |

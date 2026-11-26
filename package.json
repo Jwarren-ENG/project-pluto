@@ -1,7 +1,7 @@
 {
   "name": "project-pluto-desktop",
   "productName": "Project Pluto",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "description": "A desktop workspace for job applications and interview notes.",
   "license": "MIT",
@@ -18,7 +18,9 @@
     "verify:package": "node build/verify-package.mjs",
     "smoke:sources": "node tests/discover-ui.mjs",
     "smoke:interactions": "node tests/budget-chart-smoke.mjs && node tests/budget-initial-provider.mjs && node tests/activity-smoke.mjs",
-    "smoke:profile": "node tests/profile-depth-smoke.mjs"
+    "smoke:profile": "node tests/profile-depth-smoke.mjs",
+    "smoke:onboarding": "node tests/onboarding-desktop.mjs",
+    "smoke:job-kit": "node tests/job-kit-workflow-smoke.mjs && node tests/job-kit-desktop.mjs"
   },
   "dependencies": {
     "@fontsource-variable/ibm-plex-sans": "^5.3.0",

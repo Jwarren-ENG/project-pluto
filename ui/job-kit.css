@@ -1,0 +1,50 @@
+.job-kit {
+  min-width: 0;
+  margin-block: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.job-kit-header, .job-kit-nav, .job-kit-status, .job-kit-actions, .job-kit-sync {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.job-kit-header, .job-kit-status, .job-kit-sync { justify-content: space-between; }
+.job-kit h2, .job-kit p, .job-kit dd { margin: 0; }
+.job-kit [aria-expanded="true"] svg { transform: rotate(180deg); }
+.job-kit-nav { margin-top: 4px; }
+.job-kit [data-variant="link"] { padding-inline: 0; color: var(--accent); }
+.job-kit-status { margin-top: 16px; }
+.job-kit-sources { margin: 8px 0 0; }
+.job-kit-sources > div {
+  display: grid;
+  grid-template-columns: minmax(7rem, .55fr) minmax(0, 1fr) auto;
+  gap: 4px 16px;
+  align-items: baseline;
+  padding-block: 8px;
+  border-top: 1px solid var(--line);
+}
+.job-kit-sources dt, .job-kit-task label { font-weight: 550; }
+.job-kit-sources dd { overflow-wrap: anywhere; color: var(--subtle); }
+.job-kit-sync { padding-block: 12px; border-block: 1px solid var(--line); }
+.job-kit-sync p, .job-kit-task p { color: var(--subtle); font-size: 13px; }
+.job-kit-sync span { color: var(--ink); margin-left: 4px; }
+.job-kit-task { margin-top: 16px; }
+.job-kit-task label { margin: 0 0 4px; }
+.job-kit-task select { width: auto; min-width: 0; max-width: 100%; margin: 0; border-radius: 0; }
+.job-kit-task p, .job-kit .job-kit-feedback:not(:empty), .job-kit .job-kit-error { margin-top: 8px; }
+.job-kit-error { color: var(--color-destructive, #b81920); }
+@media (max-width: 672px) {
+  .job-kit-sources > div { grid-template-columns: minmax(0, 1fr) auto; gap: 0 12px; }
+  .job-kit-sources dt, .job-kit-sources dt + dd { grid-column: 1; }
+  .job-kit-sources .job-kit-source-actions { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+  .job-kit [data-slot="button"], .job-kit select { min-height: 48px; }
+}
+.job-kit-count { font-size: 12px; color: var(--subtle); font-variant-numeric: tabular-nums; }
+
+.job-kit-sources dd > div + div { margin-top: 8px; }
+.job-kit-sources small { display: block; color: var(--subtle); }
+.job-kit-report { font-size: 13px; color: var(--subtle); }
+.job-kit-report p, .job-kit-report ul { margin: 8px 0; }
+.job-kit-report ul { padding-inline-start: 20px; color: var(--ink); }

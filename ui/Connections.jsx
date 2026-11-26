@@ -29,7 +29,7 @@ const subscriptionMessages = {
   error: 'Pluto couldn’t check the Codex sign-in. Refresh to try again.',
 }
 
-function SubscriptionConnection({ active, saved, onSettings, notify, busy, setBusy }) {
+function SubscriptionConnection({ active, saved, onSettings, notify, busy, setBusy, setup }) {
   const { configured } = saved
   const [model, setModel] = useState(saved.model || '')
   const [status, setStatus] = useState('checking')
@@ -86,7 +86,7 @@ function SubscriptionConnection({ active, saved, onSettings, notify, busy, setBu
   return <fieldset>
     <legend>{saved.label}</legend>
     <p role="status">{busy === 'login' ? 'Finish signing in with ChatGPT in your browser.' : subscriptionMessages[status]}</p>
-    {(status === 'chatgpt' || status === 'signedOut') && <ModelPicker provider="codex" optional configured={configured} signedOut={status === 'signedOut'}
+    {(status === 'chatgpt' || status === 'signedOut') && <ModelPicker provider="codex" optional autoLoad={!setup} configured={configured} signedOut={status === 'signedOut'}
       value={model} onChange={setModel} disabled={Boolean(busy)} />}
     <div className="toolbar">
       {busy === 'login' ? <Button type="button" variant="outline" onClick={() => perform('cancel')}>Cancel sign-in</Button> : <>
@@ -104,7 +104,7 @@ function SubscriptionConnection({ active, saved, onSettings, notify, busy, setBu
   </fieldset>
 }
 
-function ApiConnection({ settings, onSettings, notify, busy, setBusy, fixedProvider }) {
+function ApiConnection({ settings, onSettings, notify, busy, setBusy, fixedProvider, setup }) {
   const [id, setId] = useState(fixedProvider || (settings.activeProvider && settings.activeProvider !== 'codex' ? settings.activeProvider : 'openai'))
   const saved = settings.providers[id]
   const [model, setModel] = useState(saved.model)
@@ -143,7 +143,8 @@ function ApiConnection({ settings, onSettings, notify, busy, setBusy, fixedProvi
         setEndpoint(next.providers[id].endpoint)
         setKey('')
         setSavedRevision(value => value + 1)
-        notify(action === 'disconnect' ? saved.label + ' disconnected.' : saved.label + ' is ready for drafts.')
+        if (action === 'disconnect') notify(saved.label + ' disconnected.')
+        else notify(setup ? 'Draft settings saved for ' + saved.label + '.' : saved.label + ' is ready for drafts.')
       }
     } catch (error) { notify(error.message) }
     finally { setBusy('') }
@@ -170,13 +171,13 @@ function ApiConnection({ settings, onSettings, notify, busy, setBusy, fixedProvi
           </label>}
           {custom && <p>Enter a key issued for this address. Pluto asks for a new key when the server address changes.</p>}
           {local && <p>Start Ollama to see the models installed on your server.</p>}
-          <ModelPicker key={id + ':' + savedRevision} provider={id} value={model} onChange={setModel} configured={saved.configured}
+          <ModelPicker key={id + ':' + savedRevision} provider={id} value={model} onChange={setModel} configured={saved.configured} autoLoad={!setup}
             apiKey={key} endpoint={endpoint} savedEndpoint={saved.endpoint} />
           <div className="toolbar">
             <Button type="submit">{busy === 'save' ? 'Saving…' : active ? 'Save connection' : 'Use for drafts'}</Button>
             {id === 'openrouter' && settings.openRouterSignIn && <Button variant="outline" type="button" disabled={!model.trim()} onClick={() => perform('oauth')}>Sign in with OpenRouter</Button>}
             {saved.configured && <>
-              <Button variant="outline" type="button" disabled={changed} onClick={() => perform('test')}>{busy === 'test' ? 'Testing…' : 'Test model'}</Button>
+              {!setup && <Button variant="outline" type="button" disabled={changed} onClick={() => perform('test')}>{busy === 'test' ? 'Testing…' : 'Test model'}</Button>}
               <Button variant="outline" type="button" onClick={() => perform('disconnect')}>Disconnect {saved.label}</Button>
             </>}
           </div>
@@ -186,7 +187,7 @@ function ApiConnection({ settings, onSettings, notify, busy, setBusy, fixedProvi
           <Button variant="outline" type="button" onClick={() => call('configure', { provider: 'openrouter', auth: 'cancel' }).catch(err => notify(err.message))}>Cancel sign-in</Button>
         </div>}
       </form>
-      {saved.configured && !local && <p>The model test sends a short sample and may use provider credits.</p>}
+      {!setup && saved.configured && !local && <p>The model test sends a short sample and may use provider credits.</p>}
     </>
   )
 }
@@ -220,11 +221,12 @@ function AccountHandoff({ account, notify }) {
   </div>
 }
 
-function AIConnection({ settings, onSettings, notify }) {
+function AIConnection({ settings, onSettings, notify, onBusyChange, setup }) {
   const active = settings.activeProvider
   const [mode, setMode] = useState(accounts.some(item => item.id === active) ? active : active ? 'api' : '')
   const [busy, setBusy] = useState('')
-  const props = { onSettings, notify, busy, setBusy }
+  useEffect(() => { onBusyChange?.(Boolean(busy)) }, [busy, onBusyChange])
+  const props = { onSettings, notify, busy, setBusy, setup }
   const account = accounts.find(item => item.id === mode)
 
   return <section className="panel">
@@ -289,7 +291,7 @@ function FirecrawlConnection({ saved, onSettings, notify }) {
   )
 }
 
-export default function Connections({ notify, go, entrySection }) {
+export default function Connections({ notify, go, entrySection, aiOnly = false, onBusyChange }) {
   const [settings, setSettings] = useState(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
@@ -301,12 +303,14 @@ export default function Connections({ notify, go, entrySection }) {
   }, [attempt])
   return <div className="section">
     {entrySection === 'email' && <MailConnection notify={notify} go={go} focusOnOpen />}
-    {settings ? <AIConnection settings={settings} onSettings={setSettings} notify={notify} /> :
+    {settings ? <AIConnection settings={settings} onSettings={setSettings} notify={notify} onBusyChange={onBusyChange} setup={aiOnly} /> :
       error ? <section className="panel"><p role="alert">{error}</p><Button variant="outline" onClick={() => setAttempt(attempt + 1)}>Retry connections</Button></section>
       : <p role="status">Loading AI connections…</p>}
-    {entrySection !== 'email' && <MailConnection notify={notify} go={go} />}
-    <DriveConnection notify={notify} />
-    {settings && <FirecrawlConnection saved={settings.providers.firecrawl} onSettings={setSettings} notify={notify} />}
-    <FreeFallback notify={notify} />
+    {!aiOnly && <>
+      {entrySection !== 'email' && <MailConnection notify={notify} go={go} />}
+      <DriveConnection notify={notify} />
+      {settings && <FirecrawlConnection saved={settings.providers.firecrawl} onSettings={setSettings} notify={notify} />}
+      <FreeFallback notify={notify} />
+    </>}
   </div>
 }

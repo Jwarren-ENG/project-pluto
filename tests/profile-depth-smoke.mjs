@@ -1,3 +1,4 @@
+import { enterFixtureWorkspace } from './setup-fixture.mjs'
 // Run from a built checkout with node tests/profile-depth-smoke.mjs.
 // Set PLUTO_SMOKE_EXECUTABLE to test a packaged app. PLUTO_PROFILE_SCREENSHOT saves the guide image.
 import assert from 'node:assert/strict'
@@ -54,7 +55,7 @@ async function desktop(userData, run, previous) {
     })
     const page = await app.firstWindow()
     page.setDefaultTimeout(15_000)
-    await heading(page, 'Today').waitFor()
+    await enterFixtureWorkspace(page)
     const result = await run(page)
     assert.deepEqual(attemptedRequests, [], 'Profile used an external service')
     return result

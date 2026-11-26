@@ -21,7 +21,7 @@ try {
   const sourceUrls = []
   await page.exposeFunction('budgetTestCall', (action, payload) => {
     calls.push(action)
-    if (action === 'workspace.snapshot') return { profile: budget ? { budget } : {}, jobs: [], notes: [], schedule: {} }
+    if (action === 'workspace.snapshot') return { existingWorkspace: true, profile: budget ? { budget } : {}, jobs: [], notes: [], schedule: {} }
     if (action === 'workspace.saveProfile') { budget = payload.budget; return }
     if (action === 'app.openExternal') { sourceUrls.push(payload.url); return }
     if (action === 'providers.settings') return getSettings()

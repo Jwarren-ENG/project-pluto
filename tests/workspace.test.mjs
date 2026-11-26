@@ -95,6 +95,26 @@ test('direct interview evidence creates no submission and upcoming interviews ar
   assert.equal(ws.snapshot().jobs.length, 3)
 })
 
+test('imported events with partial or unknown dates survive snapshot and editing', t => {
+  const { ws, data } = setup(t)
+  const job = ws.saveJob({ ...opening, stage: 'Interview', evidence: 'Test invitation', interviewAt: '2096-02-29' })
+  const db = new DatabaseSync(join(data, 'workspace.sqlite3'))
+  try {
+    const add = db.prepare('INSERT INTO events(job_id,data) VALUES (?,?)')
+    for (const recordedAt of [null, undefined, '', 'unknown', '2096-02-29', '2096-03-01T08:30:00Z']) {
+      add.run(job.id, JSON.stringify({ jobId: job.id, stage: 'Interview', evidence: 'Synthetic import', recordedAt }))
+    }
+    db.prepare('INSERT INTO submissions VALUES (?,?)').run(job.id, JSON.stringify({ submittedAt: '', evidence: 'Test receipt' }))
+  } finally { db.close() }
+  ws.saveJob({ id: job.id, salary: 'Updated', interviewAt: job.interviewAt })
+  const snapshot = ws.snapshot()
+  assert.equal(snapshot.upcomingInterviews[0].interviewAt, '2096-02-29')
+  assert.equal(snapshot.jobs[0].submittedSnapshot.submittedAt, '')
+  assert.deepEqual(snapshot.evidence.filter(e => e.evidence === 'Synthetic import').map(e => e.recordedAt),
+    ['2096-03-01T08:30:00Z', '2096-02-29', null, undefined, '', 'unknown'])
+  assert.throws(() => ws.saveJob({ id: job.id, interviewAt: '2095-02-29' }), /valid interview/)
+})
+
 test('a failure after writing the job rolls back stage, event and submission together', t => {
   const { ws, data } = setup(t)
   const job = ws.saveJob(opening)
@@ -255,4 +275,18 @@ test('reviewed profile changes preserve concurrent edits and reject an entire st
   }), /changed/)
   assert.throws(() => ws.saveReviewedProfile({changes:{summary:'No precondition'},expected:{}}), /original/)
   assert.deepEqual(ws.getProfile(), {experienceStories:[revised],budget:{jobsPerDay:25},applicationAnswers:{availability:'July'}})
+})
+
+test('external local commits invalidate the displayed workspace snapshot', t => {
+  const {ws, data} = setup(t)
+  const writer = createWorkspace(data)
+  try {
+    const initial = ws.snapshot({ includeVersion: true }).dataVersion
+    assert.equal(ws.dataVersion(), initial)
+    writer.saveNote({ title: 'Local import', body: 'Sample' })
+    assert.notEqual(ws.dataVersion(), initial)
+    const current = ws.snapshot({ includeVersion: true })
+    assert.equal(current.dataVersion, ws.dataVersion())
+    assert.equal(current.notes[0].title, 'Local import')
+  } finally { writer.close() }
 })

@@ -5,13 +5,14 @@ import { Input } from './components/ui/input'
 const names = { gmail: 'Gmail', outlook: 'Outlook', apple: 'Apple Mail' }
 const call = (action, data = {}) => window.pluto.call('mail.' + action, data)
 
-export default function MailConnection({ notify, go, focusOnOpen = false }) {
+export default function MailConnection({ notify, go, focusOnOpen = false, onBusyChange }) {
   const [accounts, setAccounts] = useState(null)
   const [setup, setSetup] = useState('')
   const [mailboxes, setMailboxes] = useState(null)
   const [id, setId] = useState('')
   const [secret, setSecret] = useState('')
   const [waiting, setWaiting] = useState(null)
+  useEffect(() => { onBusyChange?.(Boolean(waiting)) }, [waiting, onBusyChange])
   const [error, setError] = useState('')
   const heading = useRef(null)
   useEffect(() => { if (focusOnOpen) heading.current.focus() }, [focusOnOpen])
@@ -115,7 +116,7 @@ export default function MailConnection({ notify, go, focusOnOpen = false }) {
           </Button>}
       </div>
     })}
-    {accounts?.some(account => account.email && !account.error) && <Button type="button" variant="link" onClick={() => go('Mail')}>Open job mail</Button>}
+    {go && accounts?.some(account => account.email && !account.error) && <Button type="button" variant="link" onClick={() => go('Mail')}>Open job mail</Button>}
     {!setup && error && <p role="alert">{error}</p>}
     {!accounts && error && <Button type="button" variant="link" onClick={refresh}>Retry email status</Button>}
     {setup && <dialog ref={dialog} aria-labelledby="mail-setup-title"
