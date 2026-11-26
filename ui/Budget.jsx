@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from './components/ui/button.jsx'
 import { Input } from './components/ui/input.jsx'
 import { Slider } from './components/ui/slider.jsx'
@@ -36,53 +36,94 @@ function NumberField({ id, label, value, onChange, max, fractional = false, opti
   </label>
 }
 
-function MonthForecast({ days, day, onDayChange, metric }) {
-  const high = days[forecastDays][metric][1]
+// Use labeled steps so a small edit moves the curve on the same scale. Keep
+// the comparison in view when the draft is cheaper than the saved plan.
+function axisCeiling(value) {
+  if (value === 0) return 1
+  const power = 10 ** Math.floor(Math.log10(value))
+  const step = [1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 8].find(step => step * power >= value) ?? 10
+  return Math.max(value, step * power)
+}
+const axisNumber = new Intl.NumberFormat('en-US', { notation: 'compact', maximumSignificantDigits: 3 })
+function plotMetric(estimate, provider) {
+  if (Object.hasOwn(creditCards, provider)) return 'credits'
+  return provider === 'subscription' || !estimate.month.total ? 'tokens' : 'total'
+}
+
+function MonthForecast({ days, day, onDayChange, horizon, metric, baseline, comparisonName }) {
+  const periods = days.slice(0, horizon + 1)
+  const [showReference, setShowReference] = useState(true)
+  const reference = baseline?.days
+  const compare = reference && periods.some((period, index) => period[metric][1] !== reference[index][metric][1])
+  // Leave room to raise the daily target without immediately rescaling it.
+  const referenceHigh = showReference ? reference?.[horizon][metric][1] ?? 0 : 0
+  const ceiling = axisCeiling(Math.max(days[horizon][metric][1], referenceHigh * 1.5))
   const bounds = days[day][metric]
   const value = metrics[metric].format(bounds)
   const title = metrics[metric].cumulative
-  // Percentage coordinates keep the plotted band and day cursor aligned as the pane resizes.
-  const y = amount => high > 0 ? 95 - 90 * amount / high : 95
-  const points = bound => days.map((period, index) => `${100 * index / forecastDays} ${y(period[metric][bound])}`)
-  const lower = points(0)
-  const upper = points(1)
-  const cursor = day / forecastDays * 100 + '%'
+  const y = amount => 95 - 90 * amount / ceiling
+  const line = (values, bound) => periods.map((_, index) => `${100 * index / horizon} ${y(values[index][metric][bound])}`)
+  const lower = line(days, 0)
+  const upper = line(days, 1)
+  const area = `M${upper.join(' L')} L${lower.toReversed().join(' L')} Z`
+  const cursor = day / horizon * 100 + '%'
 
   function preview(event) {
     if (event.pointerType !== 'mouse' || event.buttons !== 0) return
     const { left, width } = event.currentTarget.getBoundingClientRect()
-    if (width) onDayChange(Math.round(Math.max(0, Math.min(1, (event.clientX - left) / width)) * forecastDays))
+    if (width) onDayChange(Math.round(Math.max(0, Math.min(1, (event.clientX - left) / width)) * horizon))
   }
 
   return <figure className="budget-month">
     <figcaption>{title}<span>Day {day}</span></figcaption>
     <div className="budget-chart-value">{value}</div>
-    <div className="budget-plot">
-      <svg aria-hidden="true" focusable="false">
-        <svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="none">
-          <path className="budget-gridlines" d="M0 5H100 M0 50H100 M0 95H100" />
-          <path className="budget-band" d={`M${upper.join(' L')} L${lower.toReversed().join(' L')} Z`} />
-          <path className="budget-low" d={`M${lower.join(' L')}`} />
-          <path className="budget-high" d={`M${upper.join(' L')}`} />
+    <div className="budget-plot-frame">
+      <div className="budget-y-axis" aria-hidden="true">{[ceiling, ceiling / 2, 0].map(tick =>
+        <span key={tick}>{metric === 'total' ? '$' : ''}{axisNumber.format(tick)}</span>)}</div>
+      <div className="budget-plot">
+        <svg aria-hidden="true" focusable="false">
+          <svg viewBox="0 0 100 100" width="100%" height="100%" preserveAspectRatio="none">
+            <defs>
+              <clipPath id="forecast-through-day"><rect x="0" y="0" width={100 * day / horizon} height="100" /></clipPath>
+            </defs>
+            <path className="budget-gridlines" d="M0 5H100 M0 50H100 M0 95H100" />
+            <path className="budget-band" d={area} />
+            <path className="budget-band selected" clipPath="url(#forecast-through-day)" d={area} />
+            <path className="budget-low" d={`M${lower.join(' L')}`} />
+            <path className="budget-high" d={`M${upper.join(' L')}`} />
+            {compare && showReference && <path className="budget-comparison" d={`M${line(reference, 1).join(' L')}`} />}
+          </svg>
+          <line className="budget-cursor" x1={cursor} x2={cursor} y1="5%" y2="95%" />
+          {bounds[0] !== bounds[1] && <circle className="budget-dot low" cx={cursor} cy={y(bounds[0]) + '%'} r="3.5" />}
+          <circle className="budget-dot" cx={cursor} cy={y(bounds[1]) + '%'} r="5" />
         </svg>
-        <line className="budget-cursor" x1={cursor} x2={cursor} y1="5%" y2="95%" />
-        {bounds[0] !== bounds[1] && <circle className="budget-dot low" cx={cursor} cy={y(bounds[0]) + '%'} r="3" />}
-        <circle className="budget-dot" cx={cursor} cy={y(bounds[1]) + '%'} r="4" />
-      </svg>
-      <input type="range" aria-label="Forecast day" aria-describedby="budget-plot-help"
-        aria-valuetext={`Day ${day} of ${forecastDays}, ${title.toLowerCase()}, ${value}`}
-        min="0" max={forecastDays} step="1" value={day} onPointerMove={preview}
-        onChange={event => onDayChange(event.currentTarget.valueAsNumber)} />
+        <input type="range" aria-label="Forecast day" aria-describedby="budget-plot-help"
+          aria-valuetext={`Day ${day} of ${horizon}, ${title.toLowerCase()}, ${value}`}
+          min="0" max={horizon} step="1" value={day} onPointerMove={preview}
+          onChange={event => onDayChange(event.currentTarget.valueAsNumber)} />
+      </div>
+      <div className="budget-axis" aria-hidden="true">{[0, Math.floor(horizon / 2), horizon].map(tick =>
+        <span key={tick} style={{left: (tick / horizon * 100) + '%'}}>Day {tick}</span>)}</div>
     </div>
-    <div className="budget-axis" aria-hidden="true"><span>Day 0</span><span>Day 15</span><span>Day {forecastDays}</span></div>
-    <p id="budget-plot-help">Point, drag or use the arrow keys to explore.</p>
+    <div className="budget-chart-key">
+      <span>Projected range</span>
+      {compare && <button type="button" className="saved" aria-pressed={showReference}
+        onClick={() => setShowReference(!showReference)}>{comparisonName} high</button>}
+    </div>
+    <p id="budget-plot-help">Move across the chart to inspect a day. You can also tap or use the arrow keys.</p>
   </figure>
 }
 
-function Projection({ estimate, metric, local }) {
+function Projection({ estimate, baseline, comparisonName, metric, local, provider }) {
+  const [horizon, setHorizon] = useState(forecastDays)
   const [day, setDay] = useState(forecastDays)
   if (!estimate) return null
+  const chartMetric = plotMetric(estimate, provider)
   const selected = estimate.days[day]
+  function changeWindow(next) {
+    setHorizon(next)
+    setDay(day === horizon ? next : Math.min(day, next))
+  }
   const rows = [
     ['Jobs', period => count.format(period.jobs)],
     ['Estimated tokens', period => range(period.tokens, count.format)],
@@ -97,16 +138,22 @@ function Projection({ estimate, metric, local }) {
   rows.push(['Tool charges', period => money(period.tools)])
   if (metric !== 'credits') rows.push(['Estimated total', period => period.total ? range(period.total, money) : metric === 'tokens' ? 'Fee unspecified' : 'Price needed'])
   return <section className="budget-forecast" aria-labelledby="budget-forecast-title">
-    <h2 id="budget-forecast-title">30-day forecast</h2>
+    <header className="budget-forecast-heading">
+      <h2 id="budget-forecast-title">Forecast</h2>
+      <div role="group" aria-label="Forecast period" className="budget-period">
+        {[7, forecastDays].map(length => <Button key={length} type="button" variant="ghost"
+          aria-pressed={horizon === length} onClick={() => changeWindow(length)}>{length} days</Button>)}
+      </div>
+    </header>
     <div className="budget-forecast-grid">
+      <MonthForecast days={estimate.days} day={day} horizon={horizon} onDayChange={setDay} metric={chartMetric}
+        baseline={baseline?.metric === chartMetric ? baseline.estimate : null} comparisonName={comparisonName} />
       <Table aria-label="Daily and cumulative budget forecast">
         <TableHeader><TableRow><TableHead scope="col">Breakdown</TableHead><TableHead scope="col">Per day</TableHead><TableHead scope="col">Through day {day}</TableHead></TableRow></TableHeader>
         <TableBody>{rows.map(([label, value]) => <TableRow key={label} className={label === 'Estimated total' ? 'budget-total' : undefined}>
           <TableHead scope="row">{label}</TableHead><TableCell>{value(estimate.day)}</TableCell><TableCell>{value(selected)}</TableCell>
         </TableRow>)}</TableBody>
       </Table>
-      <MonthForecast days={estimate.days} day={day} onDayChange={setDay}
-        metric={metric === 'total' && !estimate.month.total ? 'tokens' : metric} />
     </div>
   </section>
 }
@@ -185,6 +232,17 @@ export default function Budget({ state, refresh, notify, setup }) {
     Number(prices.input) !== todayRates.input || Number(prices.output) !== todayRates.output)
   let estimate, error
   try { estimate = estimateBudget(form) } catch (problem) { error = problem.message }
+  const openingScenario = connection?.scenario
+  const baseline = useMemo(() => {
+    const openingPlan = loadBudget(initial, form.rateDate)
+    if (!initial && openingScenario) openingPlan.provider = openingScenario
+    try {
+      const estimate = estimateBudget(openingPlan, form.rateDate)
+      return { estimate, metric: plotMetric(estimate, openingPlan.provider) }
+    } catch { return null } // A partially filled older budget can still be edited.
+  }, [initial, openingScenario, form.rateDate])
+  const projection = <Projection estimate={estimate} baseline={baseline} comparisonName={initial ? 'Saved plan' : 'Starting plan'}
+    metric={metric} local={isLocal} provider={form.provider} />
   const onValidityChange = setup?.onValidityChange
   useEffect(() => { onValidityChange?.(!error) }, [error, onValidityChange])
   async function openSource(event) {
@@ -258,6 +316,7 @@ export default function Budget({ state, refresh, notify, setup }) {
         </select>
         {!setup && <Button type="submit" disabled={Boolean(error) || saving}>{saving ? 'Saving…' : 'Save budget'}</Button>}
       </div>
+      {!setup && projection}
       <div id="budget-scenario-help" className="budget-scenario-help">
         {sourceCard?.source && <p>
           {todayRates && <>Per million tokens, today’s published rates are {money(todayRates.input)} USD for input and {money(todayRates.output)} USD for output. </>}
@@ -316,7 +375,6 @@ export default function Budget({ state, refresh, notify, setup }) {
         </fieldset>
       </details>
     </form>
-    {setup ? <details><summary>Explore the 30-day forecast</summary><Projection estimate={estimate} metric={metric} local={isLocal} /></details> :
-      <Projection estimate={estimate} metric={metric} local={isLocal} />}
+    {setup && <details><summary>Explore the forecast</summary>{projection}</details>}
   </div>
 }

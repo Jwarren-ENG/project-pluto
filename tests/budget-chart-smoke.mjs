@@ -186,14 +186,16 @@ try {
         return path.getPointAtLength(right).y
       }
       const band = node.querySelector('.budget-band')
-      const inside = y => band.isPointInFill(new DOMPoint(20, y))
+      const ceiling = Number(node.parentElement.querySelector('.budget-y-axis span').textContent.replace('$', ''))
+      const y = dollars => 95 - 90 * dollars / ceiling
+      const inside = dollars => band.isPointInFill(new DOMPoint(20, y(dollars)))
       return {
         lower: heightAt(node.querySelector('.budget-low'), 20), upper: heightAt(node.querySelector('.budget-high'), 20),
-        inside: inside(87), above: inside(82), below: inside(92),
+        expected: [y(1.8), y(3.6)], inside: inside(2.7), above: inside(3.8), below: inside(1.6),
       }
     })
-    assert.ok(Math.abs(geometry.lower - 90) < 0.001)
-    assert.ok(Math.abs(geometry.upper - 85) < 0.001)
+    assert.ok(Math.abs(geometry.lower - geometry.expected[0]) < 0.001)
+    assert.ok(Math.abs(geometry.upper - geometry.expected[1]) < 0.001)
     assert.deepEqual([geometry.inside, geometry.above, geometry.below], [true, false, false])
     await plot.press('ArrowRight')
     await check(7, 100, '$2.40 to $4.80')

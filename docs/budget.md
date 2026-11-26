@@ -46,10 +46,10 @@ Each job starts with 2,000 to 6,000 input tokens and 300 to 800 output tokens. R
 - **Purchased credits** use the same arithmetic with the model’s credit rates. The same workload on GPT-6.2 Sol uses 17.5 to 50 credits per day when billed to purchased credits.
 - **Electricity** = jobs × average watts × active minutes per job ÷ 60,000 × USD per kWh. Adding 2 cents in paid tools to 100 local jobs adds $2 per day.
 
-The chart starts at day 30. Point to a day, drag or tap to read its cumulative totals. Use the arrow keys, Home or End with the chart focused. Day 1 is today in the device’s calendar. Published Gemini rates change within the projection where applicable. A manually edited price applies throughout the forecast.
+Choose a week or 30 days. Changing the jobs slider, model, or rates redraws the projected range immediately. A dashed line shows the high estimate for your saved plan when its value differs and both plans use the same units. Before the first save, the comparison uses the starting plan. Click its legend entry to hide the comparison and fit the scale to your draft. Point, drag, or tap to inspect a day. With the chart focused, use the arrow keys, Home, or End. The highlighted band and the breakdown follow the selected day. Day 1 is today in the device’s calendar. Published Gemini rates change within the projection where applicable. A manually edited price applies throughout the forecast.
 
 Older budgets using untouched GPT-4.1 mini or Sonnet 4.6 example prices move to the current model in the same family. Job targets and edited prices carry over. An explicitly connected older model can still show its own rate. The planner never calls a paid model to calculate an estimate.
 
-![Daily budget with GPT-6.2 Sol selected and the cumulative forecast at day 15](images/day-15-forecast.png)
+![Day 15 of a draft forecast compared with a saved plan on the same dollar scale](images/day-15-forecast.png)
 
 Current rate cards and effective dates live in `ui/budget-prices.mjs`. Update this catalog and the source links when providers publish new prices. Run `node --test tests/budget*.test.mjs` for calculation and upgrade checks, then `npm run build` and `npm run smoke:interactions` to exercise the planner in Electron.

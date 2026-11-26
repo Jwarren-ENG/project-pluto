@@ -70,9 +70,13 @@
 .budget-screen .budget-electricity label { display: grid; align-content: end; gap: 4px; }
 .budget-screen .budget-electricity input { margin: 0; }
 .budget-screen .budget-electricity p { margin: 0; line-height: 1.5; }
-.budget-screen .budget-forecast { margin-top: clamp(24px,3vw,40px); }
-.budget-screen .budget-forecast h2 { margin-bottom: 17px; font-size: clamp(22px,2.1vw,29px); font-weight: 450; letter-spacing: -.04em; }
-.budget-screen .budget-forecast-grid { display: grid; grid-template-columns: minmax(0,1.6fr) minmax(200px,1fr); gap: clamp(20px,3vw,42px); }
+.budget-screen .budget-forecast { border-top: 1px solid var(--budget-line); padding: 20px 0 24px; }
+.budget-forecast-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.budget-period { display: flex; gap: 4px; }
+.budget-period [data-slot="button"] { min-height: 32px; padding: 4px 10px; color: var(--budget-muted); }
+.budget-screen .budget-period [aria-pressed="true"] { border-bottom: 2px solid var(--budget-blue); color: var(--budget-blue); }
+.budget-screen .budget-forecast h2 { margin: 0; font-size: clamp(22px,2.1vw,29px); font-weight: 450; letter-spacing: -.04em; }
+.budget-screen .budget-forecast-grid { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); gap: clamp(24px,3vw,44px); align-items: start; }
 .budget-screen .budget-forecast [data-slot="table"] { width: 100%; border-collapse: collapse; }
 .budget-screen .budget-forecast :is(th,td) { height: auto; padding: 8px 9px; background: transparent; border-bottom: 1px solid var(--budget-line); white-space: normal; }
 .budget-screen .budget-forecast th { font-weight: 450; }
@@ -80,16 +84,24 @@
 .budget-screen .budget-forecast :is(th,td):first-child { padding-left: 0; text-align: left; }
 .budget-screen .budget-forecast :is(th,td):not(:first-child) { text-align: right; }
 .budget-screen .budget-forecast .budget-total > * { font-weight: 600; border-top: 1px solid #7c817d; border-bottom: 0; }
-.budget-screen .budget-month { min-width: 0; margin: 0; padding: 4px 0 4px clamp(18px,2.2vw,32px);  }
+.budget-screen .budget-month { min-width: 0; margin: 0; padding: 0;  }
 .budget-screen .budget-month figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; font-size: 14px; font-weight: 550; }
 .budget-screen .budget-month figcaption span { color: var(--budget-muted); font-weight: 450; }
-.budget-screen .budget-chart-value { margin: 5px 0 12px; font-size: clamp(19px,1.9vw,28px); font-weight: 430; letter-spacing: -.035em; }
-.budget-screen .budget-plot { position: relative; height: 100px; margin-inline: 4px; }
+.budget-screen .budget-chart-value { margin: 5px 0 12px; font-size: clamp(22px,2.2vw,34px); font-weight: 430; letter-spacing: -.035em; }
+.budget-plot-frame { display: grid; grid-template-columns: max-content minmax(0,1fr); column-gap: 10px; padding-right: 5px; }
+.budget-y-axis { display: grid; grid-template-rows: 5% 45% 45% 5%; text-align: right; color: var(--budget-muted); font-size: 12px; }
+.budget-y-axis span { grid-column: 1; align-self: start; transform: translateY(-50%); }
+.budget-y-axis span:nth-child(1) { grid-row: 2; }
+.budget-y-axis span:nth-child(2) { grid-row: 3; }
+.budget-y-axis span:nth-child(3) { grid-row: 4; }
+.budget-screen .budget-plot { position: relative; height: clamp(125px,15vw,190px); }
 .budget-screen .budget-plot > svg, .budget-screen .budget-plot input { position: absolute; inset: 0; width: 100%; height: 100%; }
 .budget-screen .budget-plot svg { display: block; overflow: visible; }
 .budget-screen .budget-plot path { fill: none; vector-effect: non-scaling-stroke; }
 .budget-screen .budget-gridlines { stroke: var(--budget-line); }
-.budget-screen .budget-plot .budget-band { fill: #d9e7fb; }
+.budget-screen .budget-plot .budget-band { fill: #eaf1fb; }
+.budget-screen .budget-plot .budget-band.selected { fill: #bad4f5; }
+.budget-screen .budget-comparison { stroke: #525252; stroke-width: 1.5; stroke-dasharray: 5 4; }
 .budget-screen .budget-low { stroke: #6d88a8; }
 .budget-screen .budget-high { stroke: var(--budget-blue); stroke-width: 2; }
 .budget-screen .budget-cursor { stroke: #525252; stroke-dasharray: 3 3; }
@@ -102,12 +114,22 @@
 .budget-screen .budget-plot input::-webkit-slider-thumb { appearance: none; width: 0; height: 100%; }
 .budget-screen .budget-plot:has(input:focus-visible) { outline: 2px solid var(--budget-blue); outline-offset: 3px; }
 .budget-screen #budget-plot-help { margin: 8px 0 0; color: var(--budget-muted); font-size: 12px; }
-.budget-screen .budget-month .budget-axis { margin-top: 4px; }
+.budget-screen .budget-month .budget-axis { grid-column: 2; position: relative; height: 20px; }
+.budget-month .budget-axis span { position: absolute; white-space: nowrap; transform: translateX(-50%); }
+.budget-month .budget-axis span:first-child { transform: none; }
+.budget-month .budget-axis span:last-child { transform: translateX(-100%); }
+.budget-chart-key { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 8px; font-size: 12px; color: var(--budget-muted); }
+.budget-chart-key :is(span, button) { display: inline-flex; align-items: center; gap: 6px; }
+.budget-chart-key :is(span, button)::before { content: ''; width: 18px; height: 8px; border-top: 2px solid var(--budget-blue); background: #bad4f5; }
+.budget-chart-key button { color: inherit; font: inherit; padding: 3px 4px; border: 0; background: transparent; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.budget-chart-key button:focus-visible { outline: 2px solid var(--budget-blue); }
+.budget-chart-key button[aria-pressed=false] { text-decoration: line-through; }
+.budget-chart-key .saved::before { height: 0; border-top: 2px dashed #525252; background: none; }
 @media (max-width: 1056px) {
   .budget-screen fieldset.budget-electricity { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 990px) {
-  .budget-screen .budget-forecast-grid { grid-template-columns: minmax(0,1.7fr) minmax(170px,1fr); gap: 18px; }
+  .budget-screen .budget-forecast-grid { grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); gap: 18px; }
 }
 @media (max-width: 740px) {
   .budget-screen .budget-plan, .budget-screen .budget-forecast-grid { grid-template-columns: minmax(0,1fr); }
@@ -115,8 +137,7 @@
   .budget-screen .budget-readout { padding: 4px 0 18px; }
   .budget-screen .budget-toolbar { flex-wrap: wrap; gap: 8px 12px; }
   .budget-screen .budget-toolbar select { flex: 1 1 160px; }
-  .budget-screen .budget-month { padding: 14px 0 0; }
-  .budget-screen .budget-plot { height: 84px; }
+  .budget-screen .budget-plot { height: 150px; }
 }
 @media (max-width: 460px) {
   .budget-screen .budget-toolbar { display: grid; grid-template-columns: minmax(0,1fr) auto; }

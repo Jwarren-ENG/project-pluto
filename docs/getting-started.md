@@ -1,6 +1,6 @@
 # Getting started with Project Pluto
 
-This guide shows **Project Pluto v0.2.6**. Older GitHub installers may show different screens.
+This guide shows **Project Pluto v0.2.7**. Older GitHub installers may show different screens.
 
 This walkthrough takes you from an empty workspace to a saved employer receipt. The screenshots follow a fictional applicant tracking an Inventory Analyst opening at Harborline Books. You can follow along with a real posting and leave it at **Saved** until you’re ready to apply.
 
@@ -71,11 +71,11 @@ If you used the Mac picker, look for your address followed by **via Apple Mail**
 
 ## 7. Set a daily target (optional)
 
-Open **Daily budget** and enter your **Jobs per day**. Choose a **Pricing scenario** and open **Token and pricing assumptions** to enter your model’s rates and any separate tool charges. The **30-day forecast** estimates costs or usage at that pace. Move across the chart or use its arrow keys to inspect a day. Choose **Save budget** to show the target alongside confirmed submissions on **Today**. [How the budget is calculated](budget.md#calculation)
+Open **Daily budget** and enter your **Jobs per day**. Choose a **Pricing scenario** and open **Token and pricing assumptions** to enter your model’s rates and any separate tool charges. Choose **7 days** or **30 days** in **Forecast**. Move the jobs slider to compare the new estimate with your saved plan. Point to a day on the chart to see how many jobs and how much spending that pace would add up to. Choose **Save budget** to show the target alongside confirmed submissions on **Today**. [How the budget is calculated](budget.md#calculation)
 
-In this example, a target of 100 jobs per day gives 1,500 jobs **Through day 15**. The shaded band shows the range of estimated costs over time.
+Here the saved plan is 40 jobs per day. Trying 20 jobs per day puts the new estimate below the dashed line. At day 15 the table shows 300 jobs and $3 to $6 in estimated costs.
 
-![GPT-6.2 Sol at 100 jobs per day. Day 15 shows 1,500 jobs and an estimated $10.50 to $30.00.](images/day-15-forecast.png)
+![A draft of 20 jobs per day compared with a saved plan of 40. Day 15 shows 300 jobs and a forecast of $3 to $6.](images/day-15-forecast.png)
 
 To save a reviewed résumé to Google Drive, open **Connections → Google Drive**. A configured copy opens Google in your browser so you can choose your account. [Connect Google Drive with pictures](drive.md)
 
